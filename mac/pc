@@ -26,6 +26,32 @@ moonlight_close() {
   pkill -9 -x Moonlight 2>/dev/null; return 0
 }
 
+# Put the Moonlight stream window into macOS full screen (like the remote desktop app):
+# the menu bar then appears when the mouse touches the top edge. Waits up to 30 s for the
+# stream window (its title is the PC name; Moonlight's own windows are called "Moonlight").
+# Needs the Accessibility permission for the app that runs this (SwiftBar / Terminal).
+moonlight_fullscreen() {
+  osascript >/dev/null 2>&1 <<'APPLESCRIPT'
+tell application "System Events"
+  repeat 60 times
+    if exists process "Moonlight" then
+      tell process "Moonlight"
+        repeat with w in windows
+          try
+            if name of w is not "Moonlight" and (value of attribute "AXFullScreen" of w) is false then
+              set value of attribute "AXFullScreen" of w to true
+              return
+            end if
+          end try
+        end repeat
+      end tell
+    end if
+    delay 0.5
+  end repeat
+end tell
+APPLESCRIPT
+}
+
 # Wake the PC through UpSnap's API. Login comes from the macOS keychain. Returns 1 if not possible.
 upsnap_wake() {
   local user pass json token id coll
@@ -79,6 +105,8 @@ case "$1" in
     moonlight_close
     open -a Moonlight --args stream "$PC_IP" "$STREAM_APP"
     touch "$WAS_STREAM"
+    # in the background, so the menu does not wait for it
+    [ "$PLAY_FULLSCREEN" = yes ] && { nohup bash -c "$(declare -f moonlight_fullscreen); moonlight_fullscreen" >/dev/null 2>&1 & disown; }
     t moon_start ;;
   stop|stopp)
     # ask the PC to end the app (Apollo/Sunshine then turns the real monitors back on) …
