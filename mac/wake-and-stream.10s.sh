@@ -67,9 +67,11 @@ if ! home_reachable; then
 fi
 
 if port_open 3389; then
-  # Is a (possibly paused) Moonlight stream running? Apollo/Sunshine then reports SUNSHINE_SERVER_BUSY.
+  # Moonlight stream: 2 = open on this Mac right now, 1 = paused (started via the menu/pc, not ended yet), 0 = none.
+  # (Apollo/Sunshine only report the stream state to paired clients, so we track it on the Mac.)
   stream=0; rdp=0
-  curl -s -m 2 "http://$PC_IP:47989/serverinfo?uniqueid=0123456789ABCDEF" 2>/dev/null | grep -q "SERVER_BUSY" && stream=1
+  [ -f "$WAS_STREAM" ] && stream=1
+  pgrep -x Moonlight >/dev/null && [ $stream -eq 1 ] && stream=2
   # Is this Mac connected via remote desktop? (open connection to port 3389)
   netstat -an -p tcp 2>/dev/null | grep -q "${PC_IP//./\\.}\.3389 .*ESTABLISHED" && rdp=1
   rm -f "$WAS_STATE"
@@ -78,7 +80,9 @@ if port_open 3389; then
   echo "---"
   if [ $rdp -eq 1 ]; then item "$(t m_work_end)" release "refresh=true sfimage=briefcase.fill"
   else                     item "$(t m_work)" work "sfimage=briefcase"; fi
-  if [ $stream -eq 1 ]; then
+  if [ $stream -eq 2 ]; then
+    item "$(t m_play_end)" stop "refresh=true sfimage=stop.circle"
+  elif [ $stream -eq 1 ]; then
     item "$(t m_play_resume)" play "sfimage=gamecontroller.fill"
     item "$(t m_play_end)" stop "refresh=true sfimage=stop.circle"
   else
@@ -89,6 +93,7 @@ if port_open 3389; then
   item "--$(t m_shutdown)" off "refresh=true"
   item "--$(t m_sleep)" sleep "refresh=true"
 else
+  rm -f "$WAS_STREAM"   # PC is off/asleep → no stream can be running
   # sleep and off look the same from outside → use what was last chosen in the menu
   if [ "$(cat "$WAS_STATE" 2>/dev/null)" = "sleep" ]; then
     bar_icon sleep moon.zzz

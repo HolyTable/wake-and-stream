@@ -6,6 +6,8 @@ WAS_HOME="$HOME/.config/wake-and-stream"
 WAS_CONFIG="$WAS_HOME/config"
 WAS_ICONS="$WAS_HOME/icons"
 WAS_STATE="$WAS_HOME/last-state"          # remembers "off" or "sleep" chosen via the menu
+WAS_STREAM="$WAS_HOME/stream-active"      # exists while a Moonlight stream was started and not ended
+                                          # (Apollo/Sunshine only tell paired clients whether a stream runs)
 
 # defaults (overridden by the config file)
 LANGUAGE=en

@@ -78,18 +78,16 @@ case "$1" in
     # when launched from the menu bar. ctrl+option+shift+Q only pauses the stream – "pc stop" ends it.
     moonlight_close
     open -a Moonlight --args stream "$PC_IP" "$STREAM_APP"
+    touch "$WAS_STREAM"
     t moon_start ;;
   stop|stopp)
     # ask the PC to end the app (Apollo/Sunshine then turns the real monitors back on) …
     moonlight_close
     open -a Moonlight --args quit "$PC_IP"
-    # … wait up to 15 s until the PC reports that no stream is running any more …
-    for _ in $(seq 1 15); do
-      curl -s -m 2 "http://$PC_IP:47989/serverinfo?uniqueid=0123456789ABCDEF" 2>/dev/null | grep -q "SERVER_BUSY" || break
-      sleep 1
-    done
-    # … and close every Moonlight window on the Mac (stream window and the helper started for "quit")
-    pkill -x Moonlight 2>/dev/null
+    # … Moonlight closes itself once the PC confirmed – give it up to 15 s, then close it anyway
+    for _ in $(seq 1 15); do pgrep -x Moonlight >/dev/null || break; sleep 1; done
+    moonlight_close
+    rm -f "$WAS_STREAM"
     t stopping ;;
   release|zurueck)
     # 1. close the remote desktop app at once – the session on the PC is then just "disconnected",
@@ -99,7 +97,7 @@ case "$1" in
     ssh "$PC_USER@$PC_IP" "$WINDOWS_DIR\\release-session.bat" || exit 1
     t released ;;
   off|aus)
-    ssh "$PC_USER@$PC_IP" 'shutdown /s /t 0' && t shutting_down ;;
+    ssh "$PC_USER@$PC_IP" 'shutdown /s /t 0' && { rm -f "$WAS_STREAM"; t shutting_down; } ;;
   sleep|standby)
     ssh "$PC_USER@$PC_IP" 'rundll32.exe powrprof.dll,SetSuspendState 0,1,0' & sleep 3; t sleeping ;;
   status)
