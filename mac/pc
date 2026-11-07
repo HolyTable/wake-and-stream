@@ -27,8 +27,10 @@ moonlight_close() {
 }
 
 # Put the Moonlight stream window into macOS full screen (like the remote desktop app):
-# the menu bar then appears when the mouse touches the top edge. Waits up to 30 s for the
-# stream window (its title is the PC name; Moonlight's own windows are called "Moonlight").
+# the menu bar then appears when the mouse touches the top edge.
+# Moonlight opens several windows (an invisible helper window and the stream window), so we wait
+# up to 30 s for a visible window at least 800 points wide, take the largest one, give the video
+# a moment to start and only then switch it to full screen.
 # Needs the Accessibility permission for the app that runs this (SwiftBar / Terminal).
 moonlight_fullscreen() {
   osascript >/dev/null 2>&1 <<'APPLESCRIPT'
@@ -36,14 +38,26 @@ tell application "System Events"
   repeat 60 times
     if exists process "Moonlight" then
       tell process "Moonlight"
+        set best to missing value
+        set bestArea to 0
         repeat with w in windows
           try
-            if name of w is not "Moonlight" and (value of attribute "AXFullScreen" of w) is false then
-              set value of attribute "AXFullScreen" of w to true
-              return
+            set {ww, hh} to size of w
+            if ww ≥ 800 and (ww * hh) > bestArea then
+              set best to w
+              set bestArea to ww * hh
             end if
           end try
         end repeat
+        if best is not missing value then
+          delay 1.5
+          try
+            if (value of attribute "AXFullScreen" of best) is false then
+              set value of attribute "AXFullScreen" of best to true
+            end if
+          end try
+          return
+        end if
       end tell
     end if
     delay 0.5
