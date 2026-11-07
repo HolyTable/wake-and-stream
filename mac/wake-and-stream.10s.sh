@@ -11,7 +11,8 @@
 # Without argument: prints icon + menu. With argument (on/work/play/stop/release/off/sleep):
 # asks for confirmation where needed, runs "pc <argument>" and shows the result as a notification.
 
-export PATH="/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH"
+# SwiftBar starts plugins with a minimal PATH – add the usual folders (after your own ones)
+export PATH="$PATH:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 # shellcheck source=/dev/null
 . "$HOME/.config/wake-and-stream/lib.sh" 2>/dev/null || { echo "⚠ | sfimage=exclamationmark.triangle"; echo "---"; echo "wake-and-stream is not installed"; exit 0; }
 SELF="${SWIFTBAR_PLUGIN_PATH:-$0}"
@@ -40,9 +41,11 @@ if [ -n "$1" ]; then
     off)   notify "$(t n_shutting)" ;;
     sleep) notify "$(t n_sleeping)" ;;
   esac
-  result=$(pc "$1" 2>&1 | tail -n 1)
+  output=$(pc "$1" 2>&1); rc=$?
+  result=$(printf '%s\n' "$output" | tail -n 1)
   [ -n "$result" ] && notify "$result"
-  case "$1" in off|sleep) echo "$1" > "$WAS_STATE" ;; esac
+  # remember "off"/"sleep" only if it worked
+  if [ $rc -eq 0 ]; then case "$1" in off|sleep) echo "$1" > "$WAS_STATE" ;; esac; fi
   exit 0
 fi
 

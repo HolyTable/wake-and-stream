@@ -65,7 +65,7 @@ fi
 
 # 4. UpSnap login in the keychain
 echo
-if [ "$(ask "Store your UpSnap login in the keychain now? (y/n)" y)" = y ]; then
+case "$(ask "Store your UpSnap login in the keychain now? (y/n)" y)" in [yYjJ]*)
   # shellcheck source=/dev/null
   . "$DEST/config"
   user=$(ask "UpSnap user name / e-mail" "")
@@ -74,8 +74,8 @@ if [ "$(ask "Store your UpSnap login in the keychain now? (y/n)" y)" = y ]; then
     echo "Type your UpSnap password twice (it is not shown):"
     security add-generic-password -s "$KEYCHAIN_SERVICE" -a "$user" -w
     echo "✓ UpSnap login stored in the keychain ($KEYCHAIN_SERVICE)"
-  fi
-fi
+  fi ;;
+esac
 
 echo
 echo "Done. Try:  pc status"

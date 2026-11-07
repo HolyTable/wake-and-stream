@@ -19,6 +19,9 @@
 
 require_home() { home_reachable || { t no_home; exit 1; }; }
 
+# SSH to the PC: key only (never a password prompt that would hang the menu), give up after 5 s
+pc_ssh() { ssh -o BatchMode=yes -o ConnectTimeout=5 "$PC_USER@$PC_IP" "$@"; }
+
 # Close Moonlight on the Mac (if open) and wait until it is really gone
 moonlight_close() {
   pkill -x Moonlight 2>/dev/null || return 0
@@ -86,7 +89,8 @@ upsnap_wake() {
          --data-urlencode "filter=ip='$PC_IP'" | grep -o '"id":"[^"]*"' | head -n 1 | cut -d'"' -f4)
   [ -n "$id" ] || return 1
   # UpSnap only answers once the PC is up – run in the background, we wait below
-  curl -s -m 150 -o /dev/null "$UPSNAP_URL/api/upsnap/wake/$id" -H "Authorization: $token" &
+  # (all output to /dev/null, otherwise the menu would wait for this background request)
+  curl -s -m 150 -o /dev/null "$UPSNAP_URL/api/upsnap/wake/$id" -H "Authorization: $token" >/dev/null 2>&1 &
   return 0
 }
 
@@ -136,12 +140,15 @@ case "$1" in
     #    so the "another connection was made" warning never shows up
     pkill -x "$RDP_APP" 2>/dev/null && sleep 2
     # 2. hand the disconnected session back to the PC screen, unlocked
-    ssh "$PC_USER@$PC_IP" "$WINDOWS_DIR\\release-session.bat" || exit 1
+    pc_ssh "$WINDOWS_DIR\\release-session.bat" || exit 1
     t released ;;
   off|aus)
-    ssh "$PC_USER@$PC_IP" 'shutdown /s /t 0' && { rm -f "$WAS_STREAM"; t shutting_down; } ;;
+    pc_ssh 'shutdown /s /t 0' || exit 1
+    rm -f "$WAS_STREAM"; t shutting_down ;;
   sleep|standby)
-    ssh "$PC_USER@$PC_IP" 'rundll32.exe powrprof.dll,SetSuspendState 0,1,0' & sleep 3; t sleeping ;;
+    # the PC falls asleep before it can answer – run in the background (output to /dev/null) and don't wait
+    pc_ssh 'rundll32.exe powrprof.dll,SetSuspendState 0,1,0' >/dev/null 2>&1 &
+    sleep 3; rm -f "$WAS_STREAM"; t sleeping ;;
   status)
     if port_open 3389; then t is_on; else t is_off; fi ;;
   *)

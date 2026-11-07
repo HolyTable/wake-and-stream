@@ -23,6 +23,10 @@ $TaskName = 'WakeAndStream\Monitors off on remote desktop'
 $admin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole(
   [Security.Principal.WindowsBuiltInRole]::Administrator)
 if (-not $admin) { Write-Host 'Please run this in an administrator PowerShell.' -ForegroundColor Red; exit 1 }
+# Windows PowerShell 5.1 drops inner quotes when calling schtasks/cmd - so the folder must not contain spaces
+if ($InstallDir -match '\s') { Write-Host 'InstallDir must not contain spaces.' -ForegroundColor Red; exit 1 }
+# older Windows PowerShell versions may not use TLS 1.2 by default (needed for the PsExec download)
+[Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
 
 # 1. folder + scripts
 New-Item -ItemType Directory -Force $InstallDir | Out-Null
@@ -34,6 +38,7 @@ elseif (Test-Path $flag) { Remove-Item $flag }
 
 # only Administrators and SYSTEM may change the folder, everyone else may only read/execute
 icacls $InstallDir /inheritance:r /grant:r '*S-1-5-32-544:(OI)(CI)F' '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-545:(OI)(CI)RX' | Out-Null
+if ($LASTEXITCODE -ne 0) { Write-Host "Could not set the permissions on $InstallDir." -ForegroundColor Red; exit 1 }
 Write-Host "OK  scripts -> $InstallDir (write access: admins only)"
 
 # 2. PsExec (Microsoft Sysinternals) - not redistributed with this repo, downloaded from Microsoft
@@ -50,11 +55,17 @@ if ($sig.Status -ne 'Valid' -or $sig.SignerCertificate.Subject -notmatch 'CN=Mic
 Write-Host 'OK  PsExec64.exe (signature: Microsoft Corporation, valid)'
 
 # 3. scheduled task: on remote desktop logon (event 21) or reconnect (event 25) -> monitors off
-$action = "powershell -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$InstallDir\rdp-monitors-off.ps1`""
+# (no quotes around the path on purpose - PowerShell 5.1 would strip them anyway; the path has no spaces)
+$action = "powershell -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File $InstallDir\rdp-monitors-off.ps1"
 schtasks /create /f /tn $TaskName /ru SYSTEM /rl HIGHEST /sc onevent `
   /ec Microsoft-Windows-TerminalServices-LocalSessionManager/Operational `
   /mo '*[System[(EventID=21 or EventID=25)]]' /tr $action | Out-Null
 if ($LASTEXITCODE -ne 0) { Write-Host 'Could not create the scheduled task.' -ForegroundColor Red; exit 1 }
+# check that the task really exists and points to the right script
+$xml = (schtasks /query /xml /tn $TaskName) -join "`n"
+if ($xml -notmatch [regex]::Escape("$InstallDir\rdp-monitors-off.ps1")) {
+  Write-Host 'Scheduled task was created but looks wrong - please check it in Task Scheduler.' -ForegroundColor Yellow
+}
 Write-Host "OK  scheduled task '$TaskName'"
 
 Write-Host ''
