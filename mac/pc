@@ -71,7 +71,15 @@ case "$1" in
     open -n -a Moonlight --args stream "$PC_IP" "$STREAM_APP"
     t moon_start ;;
   stop|stopp)
+    # ask the PC to end the app (Apollo/Sunshine then turns the real monitors back on) …
     open -n -a Moonlight --args quit "$PC_IP"
+    # … wait up to 15 s until the PC reports that no stream is running any more …
+    for _ in $(seq 1 15); do
+      curl -s -m 2 "http://$PC_IP:47989/serverinfo?uniqueid=0123456789ABCDEF" 2>/dev/null | grep -q "SERVER_BUSY" || break
+      sleep 1
+    done
+    # … and close every Moonlight window on the Mac (stream window and the helper started for "quit")
+    pkill -x Moonlight 2>/dev/null
     t stopping ;;
   release|zurueck)
     # 1. close the remote desktop app at once – the session on the PC is then just "disconnected",
