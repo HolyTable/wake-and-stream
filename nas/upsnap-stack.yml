@@ -8,6 +8,6 @@ services:
     network_mode: host          # needed so the magic packet is broadcast into your home network
     restart: unless-stopped
     environment:
-      - TZ=Europe/Berlin        # your time zone
+      - TZ=UTC                  # your time zone, e.g. America/New_York
     volumes:
       - /path/to/docker/upsnap/data:/app/pb_data   # settings + SSH key for the shutdown button
