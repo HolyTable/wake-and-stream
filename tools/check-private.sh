@@ -5,15 +5,18 @@
 #   tools/check-private.sh --all      check every file in the working tree
 #
 # Checks:
-#   1. your personal blocklist (default: ~/.wake-and-stream-blocklist.txt, or $WAS_BLOCKLIST)
-#      – one text per line, case-insensitive; keep this file OUTSIDE the repo
+#   1. your personal blocklist – one text per line, case-insensitive; keep this file OUTSIDE the repo.
+#      Location (first one found): $WAS_BLOCKLIST, git config "wakeandstream.blocklist"
+#      (e.g. git config wakeandstream.blocklist ~/notes/blocklist.txt), ~/.wake-and-stream-blocklist.txt
 #   2. generic patterns: private IPs (except the 192.168.1.x examples), MAC addresses (except
 #      AA:BB:CC:DD:EE:FF), e-mail addresses (except example/noreply), private keys, SSH public keys
 #   3. --staged only: the commit author e-mail must be a GitHub noreply address
 set -u
 MODE="${1:---staged}"
-BLOCKLIST="${WAS_BLOCKLIST:-$HOME/.wake-and-stream-blocklist.txt}"
 cd "$(git rev-parse --show-toplevel)" || exit 2
+BLOCKLIST="${WAS_BLOCKLIST:-$(git config --get wakeandstream.blocklist 2>/dev/null)}"
+BLOCKLIST="${BLOCKLIST:-$HOME/.wake-and-stream-blocklist.txt}"
+BLOCKLIST="${BLOCKLIST/#\~/$HOME}"
 FOUND=0
 
 report() { echo "  ✗ $1: $2"; FOUND=1; }

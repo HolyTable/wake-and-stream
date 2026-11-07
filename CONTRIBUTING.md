@@ -15,6 +15,12 @@ committed (your name, real IPs, MAC address, user names, e-mail, …):
 nano ~/.wake-and-stream-blocklist.txt
 ```
 
+Prefer to keep it somewhere else? Tell the check where it is (stored only in your local `.git/config`):
+
+```bash
+git config wakeandstream.blocklist ~/notes/blocklist.txt
+```
+
 Use your GitHub noreply address for commits in this repo:
 
 ```bash
