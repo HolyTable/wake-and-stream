@@ -1,0 +1,131 @@
+#!/bin/bash
+# pc – use your Windows PC from the Mac (through your router's VPN)
+#
+#   pc on       turn the PC on (via UpSnap) and wait until it is ready
+#   pc work     turn on if needed, then open the remote desktop app
+#   pc play     turn on if needed, then start the Moonlight stream
+#   pc stop     end a paused Moonlight stream on the PC (monitors back on)
+#   pc release  end the remote desktop session and hand it back to the PC screen, unlocked
+#   pc off      shut the PC down
+#   pc sleep    put the PC to sleep
+#   pc status   is the PC on?
+#
+# German aliases: an, arbeiten (rdp), spielen (moon), stopp, zurueck, aus, standby
+# Settings: ~/.config/wake-and-stream/config   (language, IPs, user, …)
+
+# shellcheck source=/dev/null
+. "$HOME/.config/wake-and-stream/lib.sh" 2>/dev/null || { echo "wake-and-stream is not installed – run install.sh"; exit 1; }
+[ -n "$PC_IP" ] || { t no_config; exit 1; }
+
+require_home() { home_reachable || { t no_home; exit 1; }; }
+
+# Wake the PC through UpSnap's API. Login comes from the macOS keychain. Returns 1 if not possible.
+upsnap_wake() {
+  local user pass json token id coll
+  user=$(security find-generic-password -s "$KEYCHAIN_SERVICE" 2>/dev/null | sed -n 's/.*"acct"<blob>="\(.*\)"/\1/p')
+  pass=$(security find-generic-password -s "$KEYCHAIN_SERVICE" -w 2>/dev/null)
+  [ -n "$user" ] && [ -n "$pass" ] || return 1
+  pass=${pass//\\/\\\\}; pass=${pass//\"/\\\"}                       # escape for JSON
+  # UpSnap admin = PocketBase superuser, otherwise a normal user; password goes via stdin, not as an argument
+  for coll in _superusers users; do
+    json=$(printf '{"identity":"%s","password":"%s"}' "$user" "$pass" |
+      curl -s -m 5 -X POST "$UPSNAP_URL/api/collections/$coll/auth-with-password" -H 'Content-Type: application/json' --data @-)
+    token=$(printf '%s' "$json" | sed -n 's/.*"token":"\([^"]*\)".*/\1/p')
+    [ -n "$token" ] && break
+  done
+  [ -n "$token" ] || return 1
+  # find the PC in UpSnap by its IP
+  id=$(curl -s -m 5 -G "$UPSNAP_URL/api/collections/devices/records" -H "Authorization: $token" \
+         --data-urlencode "filter=ip='$PC_IP'" | grep -o '"id":"[^"]*"' | head -n 1 | cut -d'"' -f4)
+  [ -n "$id" ] || return 1
+  # UpSnap only answers once the PC is up – run in the background, we wait below
+  curl -s -m 150 -o /dev/null "$UPSNAP_URL/api/upsnap/wake/$id" -H "Authorization: $token" &
+  return 0
+}
+
+# Turn the PC on if needed and wait until the given port answers
+start_pc() {
+  port_open "$1" && return
+  if upsnap_wake; then t waking; else t wake_fallback; open "$UPSNAP_URL"; fi
+  t waiting
+  for _ in $(seq 1 90); do
+    port_open "$1" && { t arrived; sleep 5; return; }
+    printf "."; sleep 2
+  done
+  echo; t timeout; exit 1
+}
+
+case "$1" in
+  on|an)
+    require_home
+    port_open 3389 && { t already_on; exit 0; }
+    start_pc 3389; t ready ;;
+  work|rdp|arbeiten)
+    require_home; start_pc 3389
+    open -a "$RDP_APP"
+    t rdp_ready ;;
+  play|moon|spielen)
+    require_home; start_pc 47989
+    # started through macOS so it keeps running when launched from the menu bar.
+    # ctrl+option+shift+Q only pauses the stream – "pc stop" ends it.
+    open -n -a Moonlight --args stream "$PC_IP" "$STREAM_APP"
+    t moon_start ;;
+  stop|stopp)
+    open -n -a Moonlight --args quit "$PC_IP"
+    t stopping ;;
+  release|zurueck)
+    # 1. close the remote desktop app at once – the session on the PC is then just "disconnected",
+    #    so the "another connection was made" warning never shows up
+    pkill -x "$RDP_APP" 2>/dev/null && sleep 2
+    # 2. hand the disconnected session back to the PC screen, unlocked
+    ssh "$PC_USER@$PC_IP" "$WINDOWS_DIR\\release-session.bat" || exit 1
+    t released ;;
+  off|aus)
+    ssh "$PC_USER@$PC_IP" 'shutdown /s /t 0' && t shutting_down ;;
+  sleep|standby)
+    ssh "$PC_USER@$PC_IP" 'rundll32.exe powrprof.dll,SetSuspendState 0,1,0' & sleep 3; t sleeping ;;
+  status)
+    if port_open 3389; then t is_on; else t is_off; fi ;;
+  *)
+    if [ "$LANGUAGE" = de ]; then
+      cat <<'HILFE'
+pc – Desktop-PC fernsteuern
+
+  Einschalten & verbinden
+    pc an          PC einschalten (ohne Verbindung)
+    pc arbeiten    einschalten + Remotedesktop
+    pc spielen     einschalten + Moonlight
+
+  Beenden
+    pc stopp       Moonlight-Stream beenden (Monitore wieder an)
+    pc zurueck     Remotedesktop beenden (PC-Bildschirm entsperrt)
+
+  Ausschalten
+    pc aus         herunterfahren
+    pc standby     schlafen legen
+
+  Info
+    pc status      ist der PC an?
+HILFE
+    else
+      cat <<'HELP'
+pc – control your desktop PC remotely
+
+  Turn on & connect
+    pc on          turn the PC on (no connection)
+    pc work        turn on + remote desktop
+    pc play        turn on + Moonlight
+
+  End
+    pc stop        end the Moonlight stream (monitors back on)
+    pc release     end remote desktop (PC screen unlocked)
+
+  Power
+    pc off         shut down
+    pc sleep       put to sleep
+
+  Info
+    pc status      is the PC on?
+HELP
+    fi ;;
+esac

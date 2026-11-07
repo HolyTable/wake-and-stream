@@ -1,0 +1,13 @@
+# wake-and-stream - UpSnap (wake-on-LAN web UI + API) as a Docker Compose stack, e.g. in Portainer.
+# Afterwards open http://<NAS-IP>:8090, create the admin account and add your PC
+# (IP, MAC address, shutdown command - see the guide).
+services:
+  upsnap:
+    container_name: upsnap
+    image: ghcr.io/seriousm4x/upsnap:5
+    network_mode: host          # needed so the magic packet is broadcast into your home network
+    restart: unless-stopped
+    environment:
+      - TZ=Europe/Berlin        # your time zone
+    volumes:
+      - /path/to/docker/upsnap/data:/app/pb_data   # settings + SSH key for the shutdown button

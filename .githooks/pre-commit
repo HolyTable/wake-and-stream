@@ -1,0 +1,4 @@
+#!/bin/bash
+# Runs before every commit: blocks the commit if personal data would be included.
+# Enable once per clone:  git config core.hooksPath .githooks
+exec "$(git rev-parse --show-toplevel)/tools/check-private.sh" --staged

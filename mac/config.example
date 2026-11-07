@@ -1,0 +1,32 @@
+# wake-and-stream – Mac configuration
+# Copy to ~/.config/wake-and-stream/config (install.sh does this) and adjust the values.
+# This file is read by the "pc" command and by the menu bar plugin.
+
+# Language of messages and menu: en or de
+LANGUAGE=en
+
+# Your Windows PC (give it a fixed IP in your router)
+PC_IP=192.168.1.50
+# Windows user that may log in via SSH (key only)
+PC_USER=your-windows-user
+
+# Your router – used to check whether the home network is reachable (VPN up?)
+ROUTER_IP=192.168.1.1
+
+# UpSnap on your NAS/server (wakes the PC; magic packets don't cross the VPN)
+UPSNAP_URL=http://192.168.1.10:8090
+# UpSnap login is stored in the macOS keychain under this name, never in this file:
+#   security add-generic-password -s wake-and-stream-upsnap -a "your-upsnap-user" -w
+KEYCHAIN_SERVICE=wake-and-stream-upsnap
+
+# Apollo/Sunshine web UI (only used for the "More" menu link)
+APOLLO_URL=https://192.168.1.50:47990
+# App name in Apollo/Sunshine that "Play" starts
+STREAM_APP=Desktop
+
+# Where setup.ps1 installed the Windows scripts
+WINDOWS_DIR='C:\ProgramData\WakeAndStream'
+
+# Remote desktop app on the Mac and the name of the saved PC in it (for the hint text)
+RDP_APP="Windows App"
+RDP_PC_NAME=Desktop

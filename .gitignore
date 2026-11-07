@@ -1,0 +1,13 @@
+# Real configuration with your own IPs/user names – never commit
+config
+config.local
+config.ps1
+*.local
+.wake-and-stream-blocklist.txt
+
+# OS / editor clutter
+.DS_Store
+Thumbs.db
+desktop.ini
+*.log
+__pycache__/
