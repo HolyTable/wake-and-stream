@@ -24,10 +24,11 @@ APOLLO_URL=https://192.168.1.50:47990
 # App name in Apollo/Sunshine that "Play" starts
 STREAM_APP=Desktop
 
-# "Play": switch the Moonlight window to macOS full screen automatically (yes/no).
+# "Play": EXPERIMENTAL – switch the Moonlight window to macOS full screen automatically (yes/no).
+# Can leave an empty black full-screen space behind on some macOS/Moonlight versions, hence off by default.
 # Set Moonlight's display mode to "Windowed" for this; the menu bar then appears at the top edge.
 # Needs the Accessibility permission for SwiftBar (System Settings → Privacy & Security → Accessibility).
-PLAY_FULLSCREEN=yes
+PLAY_FULLSCREEN=no
 
 # Where setup.ps1 installed the Windows scripts
 WINDOWS_DIR='C:\ProgramData\WakeAndStream'

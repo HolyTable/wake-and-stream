@@ -16,7 +16,7 @@ UPSNAP_URL=""; KEYCHAIN_SERVICE=wake-and-stream-upsnap
 APOLLO_URL=""; STREAM_APP=Desktop
 WINDOWS_DIR='C:\ProgramData\WakeAndStream'
 RDP_APP="Windows App"; RDP_PC_NAME=Desktop
-PLAY_FULLSCREEN=yes
+PLAY_FULLSCREEN=no
 
 # shellcheck source=/dev/null
 [ -f "$WAS_CONFIG" ] && . "$WAS_CONFIG"

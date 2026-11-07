@@ -40,6 +40,7 @@ mk nohup     '"$@"'
 cp "$REPO/mac/lib.sh" "$T/home/.config/wake-and-stream/"
 cp "$REPO"/mac/icons/*.icns "$REPO"/mac/icons/menubar-*.png "$T/home/.config/wake-and-stream/icons/"
 sed -e 's|^ROUTER_IP=.*|ROUTER_IP=192.168.1.1|' "$REPO/mac/config.example" > "$T/home/.config/wake-and-stream/config"
+sed -i "s/^PLAY_FULLSCREEN=.*/PLAY_FULLSCREEN=yes/" "$T/home/.config/wake-and-stream/config"
 cp "$REPO/mac/pc" "$T/bin/pc"; chmod +x "$T/bin/pc"
 PLUGIN="$T/home/SwiftBar/wake-and-stream.10s.sh"
 cp "$REPO/mac/wake-and-stream.10s.sh" "$PLUGIN"; chmod +x "$PLUGIN"
