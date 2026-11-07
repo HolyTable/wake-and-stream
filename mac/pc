@@ -19,6 +19,13 @@
 
 require_home() { home_reachable || { t no_home; exit 1; }; }
 
+# Close Moonlight on the Mac (if open) and wait until it is really gone
+moonlight_close() {
+  pkill -x Moonlight 2>/dev/null || return 0
+  for _ in 1 2 3 4 5; do pgrep -x Moonlight >/dev/null || return 0; sleep 1; done
+  pkill -9 -x Moonlight 2>/dev/null; return 0
+}
+
 # Wake the PC through UpSnap's API. Login comes from the macOS keychain. Returns 1 if not possible.
 upsnap_wake() {
   local user pass json token id coll
@@ -66,13 +73,16 @@ case "$1" in
     t rdp_ready ;;
   play|moon|spielen)
     require_home; start_pc 47989
-    # started through macOS so it keeps running when launched from the menu bar.
-    # ctrl+option+shift+Q only pauses the stream – "pc stop" ends it.
-    open -n -a Moonlight --args stream "$PC_IP" "$STREAM_APP"
+    # Only one Moonlight at a time: close a running one first, because macOS ignores the
+    # arguments when the app is already open. Started through "open" so it keeps running
+    # when launched from the menu bar. ctrl+option+shift+Q only pauses the stream – "pc stop" ends it.
+    moonlight_close
+    open -a Moonlight --args stream "$PC_IP" "$STREAM_APP"
     t moon_start ;;
   stop|stopp)
     # ask the PC to end the app (Apollo/Sunshine then turns the real monitors back on) …
-    open -n -a Moonlight --args quit "$PC_IP"
+    moonlight_close
+    open -a Moonlight --args quit "$PC_IP"
     # … wait up to 15 s until the PC reports that no stream is running any more …
     for _ in $(seq 1 15); do
       curl -s -m 2 "http://$PC_IP:47989/serverinfo?uniqueid=0123456789ABCDEF" 2>/dev/null | grep -q "SERVER_BUSY" || break
