@@ -9,6 +9,10 @@ Moonlight, and shut it down again – all from one icon in the macOS menu bar.
 > Remotedesktop arbeiten oder per Moonlight spielen und wieder ausschalten – bequem über ein Symbol
 > in der Mac-Menüleiste. Menü und Meldungen gibt es auf Deutsch (`LANGUAGE=de`).
 
+<p align="center">
+  <img src="docs/images/menu-de.png" width="420" alt="Menu bar icon with the menu open: Work, Play, Power › Shut down / Sleep, More (German texts)">
+</p>
+
 ## What you get
 
 - **Menu bar icon on the Mac** that shows the PC's state – on, off, asleep, or "VPN not connected" –
