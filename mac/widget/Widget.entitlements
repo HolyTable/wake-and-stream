@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- widgets must run in the sandbox -->
+	<key>com.apple.security.app-sandbox</key>
+	<true/>
+	<!-- … but may read the state file the app writes and write the click request for the app -->
+	<key>com.apple.security.temporary-exception.files.home-relative-path.read-write</key>
+	<array>
+		<string>/.config/wake-and-stream/</string>
+	</array>
+</dict>
+</plist>

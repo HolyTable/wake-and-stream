@@ -14,6 +14,9 @@ PASS=0; FAIL=0
 export MOCKLOG="$T/calls.log" MOCKSTATE="$T/state"
 mkdir -p "$T/bin" "$T/home/.config/wake-and-stream/icons" "$T/home/SwiftBar" "$MOCKSTATE"
 
+# in-place edit that works with GNU sed (Linux/Git Bash) and BSD sed (macOS)
+sedi() { local f="${*: -1}"; sed "${@:1:$#-1}" "$f" > "$f.tmp" && mv "$f.tmp" "$f"; }
+
 # ---------- fake commands ----------
 mk() { printf '#!/bin/bash\n%s\n' "$2" > "$T/bin/$1"; chmod +x "$T/bin/$1"; }
 mk ping      'echo "ping $*" >> "$MOCKLOG"; [ "${HOME_UP:-1}" = 1 ]'
@@ -37,10 +40,10 @@ mk sleep     'exit 0'
 mk nohup     '"$@"'
 
 # ---------- install files like install.sh would ----------
-cp "$REPO/mac/lib.sh" "$T/home/.config/wake-and-stream/"
+cp "$REPO/mac/lib.sh" "$REPO/mac/action.sh" "$T/home/.config/wake-and-stream/"
 cp "$REPO"/mac/icons/*.icns "$REPO"/mac/icons/menubar-*.png "$T/home/.config/wake-and-stream/icons/"
 sed -e 's|^ROUTER_IP=.*|ROUTER_IP=192.168.1.1|' "$REPO/mac/config.example" > "$T/home/.config/wake-and-stream/config"
-sed -i "s/^PLAY_FULLSCREEN=.*/PLAY_FULLSCREEN=yes/" "$T/home/.config/wake-and-stream/config"
+sedi "s/^PLAY_FULLSCREEN=.*/PLAY_FULLSCREEN=yes/" "$T/home/.config/wake-and-stream/config"
 cp "$REPO/mac/pc" "$T/bin/pc"; chmod +x "$T/bin/pc"
 PLUGIN="$T/home/SwiftBar/wake-and-stream.10s.sh"
 cp "$REPO/mac/wake-and-stream.10s.sh" "$PLUGIN"; chmod +x "$PLUGIN"
@@ -86,10 +89,12 @@ logged "open -a Moonlight --args stream 192.168.1.50 Desktop" && [ -f "$CFG/stre
   && ok "play: starts Moonlight stream + remembers stream" || bad "play"
 ML_RUNNING=1 run bash "$T/bin/pc" play
 logged "pkill -x Moonlight" && ok "play: closes an already open Moonlight first (one instance)" || bad "play: single instance"
+# the full screen helper runs in the background – give it up to 2 s
+for _ in 1 2 3 4 5 6 7 8 9 10; do grep -q "^osascript *$" "$MOCKLOG" && break; /bin/sleep 0.2; done
 grep -q "^osascript *$" "$MOCKLOG" && ok "play: switches the stream window to full screen (PLAY_FULLSCREEN=yes)" || bad "play: fullscreen helper"
-sed -i 's/^PLAY_FULLSCREEN=.*/PLAY_FULLSCREEN=no/' "$CFG/config"; reset_state; run bash "$T/bin/pc" play
+sedi 's/^PLAY_FULLSCREEN=.*/PLAY_FULLSCREEN=no/' "$CFG/config"; reset_state; run bash "$T/bin/pc" play
 ! grep -q "^osascript *$" "$MOCKLOG" && ok "play: no full screen with PLAY_FULLSCREEN=no" || bad "play: fullscreen off"
-sed -i 's/^PLAY_FULLSCREEN=.*/PLAY_FULLSCREEN=yes/' "$CFG/config"
+sedi 's/^PLAY_FULLSCREEN=.*/PLAY_FULLSCREEN=yes/' "$CFG/config"
 run bash "$T/bin/pc" stop
 logged "open -a Moonlight --args quit 192.168.1.50" && [ ! -f "$CFG/stream-active" ] && ok "stop: quits app on PC + forgets stream" || bad "stop"
 run bash "$T/bin/pc" release
@@ -106,10 +111,14 @@ rm -f "$CFG/stream-active"
 SSH_OK=0 run bash "$T/bin/pc" release; has "timed out" && ok "release: PC unreachable → error shown" || bad "release: ssh failure"
 run bash "$T/bin/pc" sleep;                 logged "SetSuspendState" && ok "sleep" || bad "sleep"
 run bash "$T/bin/pc" aus;                   logged "shutdown /s" && ok "German alias: aus" || bad "alias aus"
-sed -i 's/^LANGUAGE=.*/LANGUAGE=de/' "$CFG/config"
+sedi 's/^LANGUAGE=.*/LANGUAGE=de/' "$CFG/config"
 run bash "$T/bin/pc" status;                has "PC ist an." && ok "German texts" || bad "German texts"
 run bash "$T/bin/pc";                       has "pc spielen" && ok "help (de)" || bad "help (de)"
-sed -i 's/^LANGUAGE=.*/LANGUAGE=en/' "$CFG/config"
+sedi 's/^LANGUAGE=.*/LANGUAGE=en/' "$CFG/config"
+
+run bash "$T/bin/pc" state
+has "^home=1$" && has "^on=1$" && has "^stream=0$" && has "^lang=en$" && ok "state: machine-readable for the widget" || bad "state"
+PC_ON=0 run bash "$T/bin/pc" state; has "^on=0$" && ok "state: PC off" || bad "state off"
 
 echo "== menu bar plugin: display =="
 reset_state
@@ -136,6 +145,7 @@ DIALOG=0 run bash "$PLUGIN" sleep; [ "$(cat "$CFG/last-state")" = sleep ] && ok 
 grep -q 'power-off.icns' "$MOCKLOG" || grep -q 'sleep.icns' "$MOCKLOG" && ok "dialog uses own icons" || bad "dialog icons"
 PC_ON=0 DIALOG=1 run bash "$PLUGIN" on; ! logged "curl" && ! logged "open http" && ok "Turn on (PC off) → Cancel → nothing happens" || bad "cancel on"
 DIALOG=1 run bash "$PLUGIN" play; logged "Moonlight --args stream" && ok "Play with PC already on → no question" || bad "play no confirm"
+WAS_CONFIRMED=1 DIALOG=1 run bash "$CFG/action.sh" off; logged "shutdown /s" && ! logged "display dialog" && ok "action.sh: WAS_CONFIRMED=1 (widget asked) → no dialog" || bad "confirmed"
 run bash "$PLUGIN" stop;        logged "--args quit" && ok "End play session → pc stop" || bad "stop action"
 
 echo "== install.sh =="
@@ -156,16 +166,18 @@ http://192.168.1.9:8090
 
 j
 me@example.com
+n
 ' |
       HOME="$I/home" PATH="$I/bin:$PATH" bash "$REPO/mac/install.sh" 2>&1)
 C="$I/home/.config/wake-and-stream"
 grep -q '^LANGUAGE=de$' "$C/config" && grep -q '^PC_IP=192.168.1.77$' "$C/config" && grep -q '^PC_USER=meinuser$' "$C/config"   && grep -q '^ROUTER_IP=192.168.1.254$' "$C/config" && grep -q '^UPSNAP_URL=http://192.168.1.9:8090$' "$C/config"   && grep -q '^APOLLO_URL=https://192.168.1.77:47990$' "$C/config" && ok "install: config written from the answers" || bad "install: config"
-[ -f "$C/lib.sh" ] && [ -f "$C/icons/power-on.icns" ] && [ -f "$C/icons/menubar-sleep.png" ] && ok "install: lib.sh + icons copied" || bad "install: files"
+[ -f "$C/lib.sh" ] && [ -x "$C/action.sh" ] && [ -f "$C/icons/power-on.icns" ] && [ -f "$C/icons/menubar-sleep.png" ] && ok "install: lib.sh + icons copied" || bad "install: files"
 grep -q "sudo install -m 755 .*/pc /usr/local/bin/pc" "$MOCKLOG" && ok "install: pc command via sudo" || bad "install: pc"
 [ -x "$I/home/SwiftBar/wake-and-stream.10s.sh" ] && ok "install: plugin copied to SwiftBar folder (executable)" || bad "install: plugin"
 grep -q "security add-generic-password -s wake-and-stream-upsnap -a me@example.com -w" "$MOCKLOG" && ok "install: 'j' accepted, keychain entry created" || bad "install: keychain"
 echo "PC_IP=192.168.1.99 # mine" >> "$C/config"
 OUT=$(printf '
+n
 n
 ' | HOME="$I/home" PATH="$I/bin:$PATH" bash "$REPO/mac/install.sh" 2>&1)
 grep -q "192.168.1.99 # mine" "$C/config" && echo "$OUT" | grep -q "keeping existing config" && ok "install: second run keeps your config" || bad "install: keep config"

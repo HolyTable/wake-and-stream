@@ -1,6 +1,7 @@
 # 6 – The menu bar icon
 
 The SwiftBar plugin refreshes every 10 seconds and only shows what makes sense right now.
+Prefer a widget? See [chapter 10](10-widget.md) – same states, same choices.
 
 | Icon | Meaning | Menu |
 |---|---|---|

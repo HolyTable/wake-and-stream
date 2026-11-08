@@ -106,3 +106,28 @@ port_open() { nc -z -G 2 "$PC_IP" "$1" >/dev/null 2>&1; }
 
 # Is the home network reachable (directly or through the VPN)?
 home_reachable() { ping -c1 -t1 "$ROUTER_IP" >/dev/null 2>&1; }
+
+# was_state – checks everything once and sets (used by the menu bar plugin and the widget app):
+#   S_HOME   1 = home network reachable
+#   S_ON     1 = PC is on
+#   S_STREAM 2 = Moonlight stream open on this Mac, 1 = paused (started, not ended), 0 = none
+#   S_RDP    1 = this Mac is connected via remote desktop
+#   S_LAST   "sleep"/"off" = what was last chosen while the PC is off (both look the same from outside)
+# (Apollo/Sunshine only report the stream state to paired clients, so we track it on the Mac.)
+was_state() {
+  S_HOME=0; S_ON=0; S_STREAM=0; S_RDP=0; S_LAST=""
+  home_reachable || return 0
+  S_HOME=1
+  if port_open 3389; then
+    S_ON=1
+    [ -f "$WAS_STREAM" ] && S_STREAM=1
+    pgrep -x Moonlight >/dev/null && [ $S_STREAM -eq 1 ] && S_STREAM=2
+    # open connection to port 3389 of the PC = remote desktop from this Mac
+    netstat -an -p tcp 2>/dev/null | grep -q "${PC_IP//./\\.}\.3389 .*ESTABLISHED" && S_RDP=1
+    rm -f "$WAS_STATE"
+  else
+    rm -f "$WAS_STREAM"   # PC is off/asleep → no stream can be running
+    S_LAST=$(cat "$WAS_STATE" 2>/dev/null)
+  fi
+  return 0
+}

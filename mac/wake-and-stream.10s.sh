@@ -17,37 +17,8 @@ export PATH="$PATH:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 . "$HOME/.config/wake-and-stream/lib.sh" 2>/dev/null || { echo "⚠ | sfimage=exclamationmark.triangle"; echo "---"; echo "wake-and-stream is not installed"; exit 0; }
 SELF="${SWIFTBAR_PLUGIN_PATH:-$0}"
 
-notify() { osascript -e "display notification \"$1\" with title \"PC\"" >/dev/null 2>&1; }
-
-# Confirmation dialog: $1 = question, $2 = confirm button, $3 = icon name (power-on/power-off/sleep).
-# "Cancel" is the default button, so an accidental Enter does nothing. Returns 0 if confirmed.
-confirm() {
-  local icon="caution" file="$WAS_ICONS/$3.icns" cancel
-  cancel=$(t d_cancel)
-  [ -f "$file" ] && icon="(POSIX file \"$file\" as alias)"
-  osascript -e "display dialog \"$1\" with title \"PC\" buttons {\"$cancel\", \"$2\"} default button \"$cancel\" cancel button \"$cancel\" with icon $icon" >/dev/null 2>&1
-}
-
-# ---------- action (menu click) ----------
-if [ -n "$1" ]; then
-  case "$1" in
-    on|work|play)
-      port_open 3389 || confirm "$(t d_turn_on)" "$(t m_turn_on)" power-on || exit 0 ;;
-    off)   confirm "$(t d_shutdown)" "$(t m_shutdown)" power-off || exit 0 ;;
-    sleep) confirm "$(t d_sleep)" "$(t m_sleep)" sleep || exit 0 ;;
-  esac
-  case "$1" in
-    on)    notify "$(t waking)" ;;
-    off)   notify "$(t n_shutting)" ;;
-    sleep) notify "$(t n_sleeping)" ;;
-  esac
-  output=$(pc "$1" 2>&1); rc=$?
-  result=$(printf '%s\n' "$output" | tail -n 1)
-  [ -n "$result" ] && notify "$result"
-  # remember "off"/"sleep" only if it worked
-  if [ $rc -eq 0 ]; then case "$1" in off|sleep) echo "$1" > "$WAS_STATE" ;; esac; fi
-  exit 0
-fi
+# ---------- action (menu click) → action.sh (shared with the widget app) ----------
+[ -n "$1" ] && exec bash "$WAS_HOME/action.sh" "$1"
 
 # ---------- display ----------
 # menu bar icon: green power = on, red power = off, yellow moon = asleep, ⚠ = home network not reachable
@@ -69,16 +40,9 @@ if ! home_reachable; then
   exit 0
 fi
 
-if port_open 3389; then
-  # Moonlight stream: 2 = open on this Mac right now, 1 = paused (started via the menu/pc, not ended yet), 0 = none.
-  # (Apollo/Sunshine only report the stream state to paired clients, so we track it on the Mac.)
-  stream=0; rdp=0
-  [ -f "$WAS_STREAM" ] && stream=1
-  pgrep -x Moonlight >/dev/null && [ $stream -eq 1 ] && stream=2
-  # Is this Mac connected via remote desktop? (open connection to port 3389)
-  netstat -an -p tcp 2>/dev/null | grep -q "${PC_IP//./\\.}\.3389 .*ESTABLISHED" && rdp=1
-  rm -f "$WAS_STATE"
-
+was_state
+if [ $S_ON -eq 1 ]; then
+  stream=$S_STREAM; rdp=$S_RDP
   bar_icon on power.circle.fill
   echo "---"
   if [ $rdp -eq 1 ]; then item "$(t m_work_end)" release "refresh=true sfimage=briefcase.fill"
@@ -96,9 +60,8 @@ if port_open 3389; then
   item "--$(t m_shutdown)" off "refresh=true"
   item "--$(t m_sleep)" sleep "refresh=true"
 else
-  rm -f "$WAS_STREAM"   # PC is off/asleep → no stream can be running
   # sleep and off look the same from outside → use what was last chosen in the menu
-  if [ "$(cat "$WAS_STATE" 2>/dev/null)" = "sleep" ]; then
+  if [ "$S_LAST" = "sleep" ]; then
     bar_icon sleep moon.zzz
     echo "---"
     item "$(t m_wake)" on "refresh=true sfimage=sun.max"

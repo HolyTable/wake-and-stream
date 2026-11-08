@@ -3,11 +3,11 @@
 **Use your Windows gaming PC from anywhere – without leaving it running all day.**
 
 Wake the PC from your Mac through your router's VPN, work on it via Remote Desktop or play via
-Moonlight, and shut it down again – all from one icon in the macOS menu bar.
+Moonlight, and shut it down again – all from one icon in the macOS menu bar or a widget.
 
 > 🇩🇪 Kurz auf Deutsch: Windows-PC von unterwegs per WireGuard der FRITZ!Box aufwecken, per
 > Remotedesktop arbeiten oder per Moonlight spielen und wieder ausschalten – bequem über ein Symbol
-> in der Mac-Menüleiste. Menü und Meldungen gibt es auf Deutsch (`LANGUAGE=de`).
+> in der Mac-Menüleiste oder ein Widget. Menü und Meldungen gibt es auf Deutsch (`LANGUAGE=de`).
 
 <p align="center">
   <img src="docs/images/menu-de.png" width="420" alt="Menu bar icon with the menu open: Work, Play, Power › Shut down / Sleep, More (German texts)">
@@ -17,6 +17,8 @@ Moonlight, and shut it down again – all from one icon in the macOS menu bar.
 
 - **Menu bar icon on the Mac** that shows the PC's state – on, off, asleep, or "VPN not connected" –
   with *Turn on*, *Work*, *Play*, *End session*, *Shut down*, *Sleep*.
+- **…or a widget** for Notification Center / the desktop with the same buttons – clicks run right in
+  the widget, including the "really …?" question ([chapter 10](docs/10-widget.md)).
 - **Wake-on-LAN through the VPN.** Magic packets don't cross a VPN tunnel, so a small container on
   your NAS ([UpSnap](https://github.com/seriousm4x/UpSnap)) sends them; the Mac asks it via its API.
 - **Work:** Remote Desktop (Windows App). *End work session* hands the session back to the PC
@@ -49,7 +51,7 @@ Moonlight, and shut it down again – all from one icon in the macOS menu bar.
 | Router | VPN for your Mac, e.g. WireGuard on a FRITZ!Box (any router/VPN that puts you into the home network works) |
 | NAS / home server | Docker (for UpSnap), always on |
 | Windows PC | Windows 10/11 **Pro** (for Remote Desktop), Wake-on-LAN capable wired network card, NVIDIA/AMD/Intel GPU for streaming |
-| Mac | macOS, [SwiftBar](https://github.com/swiftbar/SwiftBar), [Windows App](https://apps.apple.com/app/windows-app/id1295203466), [Moonlight](https://moonlight-stream.org) |
+| Mac | macOS, [SwiftBar](https://github.com/swiftbar/SwiftBar) for the menu bar icon **or** macOS 14+ with the Command Line Tools for the widget, [Windows App](https://apps.apple.com/app/windows-app/id1295203466), [Moonlight](https://moonlight-stream.org) |
 
 ## Quick start
 
@@ -79,13 +81,15 @@ Moonlight, and shut it down again – all from one icon in the macOS menu bar.
 | 7 | [Remote Desktop extras](docs/07-remote-desktop-extras.md) – end session cleanly, monitors off, microphone |
 | 8 | [TV](docs/08-tv.md) – Moonlight on a Samsung (Tizen) TV |
 | 9 | [Test from outside](docs/09-test-from-outside.md) |
+| 10 | [Widget](docs/10-widget.md) – Notification Center / desktop widget instead of the menu bar icon |
 | – | [Troubleshooting](docs/troubleshooting.md) – every pitfall we hit, with the fix |
 | – | [Security](docs/security.md) – what this setup trades off and why |
 
 ## Repository layout
 
 ```
-mac/        pc command, SwiftBar plugin, installer, config example, icons (+ generator)
+mac/        pc command, SwiftBar plugin, action.sh, installer, config example, icons (+ generator)
+mac/widget/ widget + background app (Swift, built without Xcode), layout preview
 windows/    setup.ps1 / uninstall.ps1, release-session.bat, monitors off/on scripts
 nas/        UpSnap Docker Compose stack
 docs/       the guide

@@ -7,6 +7,7 @@
 #   2. /usr/local/bin/pc                 the "pc" command (needs sudo)
 #   3. SwiftBar plugin folder            menu bar plugin (if SwiftBar is installed)
 #   4. macOS keychain                    UpSnap login (optional)
+#   5. ~/Applications/Wake and Stream.app  widget for Notification Center / desktop (optional, macOS 14+)
 set -e
 HERE="$(cd "$(dirname "$0")" && pwd)"
 DEST="$HOME/.config/wake-and-stream"
@@ -20,8 +21,9 @@ mkdir -p "$DEST/icons"
 
 # 1. shared files + icons
 cp "$HERE/lib.sh" "$DEST/lib.sh"
+install -m 755 "$HERE/action.sh" "$DEST/action.sh"
 cp "$HERE"/icons/*.icns "$HERE"/icons/menubar-*.png "$DEST/icons/"
-echo "✓ lib.sh and icons → $DEST"
+echo "✓ lib.sh, action.sh and icons → $DEST"
 
 # config: create once from your answers, never overwrite
 if [ -f "$DEST/config" ]; then
@@ -76,6 +78,18 @@ case "$(ask "Store your UpSnap login in the keychain now? (y/n)" y)" in [yYjJ]*)
     echo "✓ UpSnap login stored in the keychain ($KEYCHAIN_SERVICE)"
   fi ;;
 esac
+
+# 5. widget app (needs macOS 14+ and the Command Line Tools for swiftc – no Xcode, no developer account)
+macos=$(sw_vers -productVersion 2>/dev/null | cut -d. -f1)
+if command -v swiftc >/dev/null 2>&1 && [ "${macos:-0}" -ge 14 ] 2>/dev/null; then
+  echo
+  case "$(ask "Install the widget for Notification Center / desktop? (y/n)" y)" in [yYjJ]*)
+    bash "$HERE/widget/build.sh"
+    open "$HOME/Applications/Wake and Stream.app"
+    echo "✓ widget app runs in the background (starts at login)."
+    echo "  Add the widget: click the date/time in the menu bar → Edit Widgets → search \"Wake and Stream\"." ;;
+  esac
+fi
 
 echo
 echo "Done. Try:  pc status"

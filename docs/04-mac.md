@@ -21,7 +21,8 @@ Any VPN that gives the Mac an address **inside** your home network works. Exampl
   [chapter 7](07-remote-desktop-extras.md#microphone)). On the first connection: *Show Certificate* →
   **Always trust**.
 - **[Moonlight](https://moonlight-stream.org)** – pair with Apollo ([chapter 5](05-apollo.md)).
-- **[SwiftBar](https://github.com/swiftbar/SwiftBar)** – shows the menu bar icon.
+- **[SwiftBar](https://github.com/swiftbar/SwiftBar)** – shows the menu bar icon. Not needed if you
+  only use the [widget](10-widget.md) (macOS 14+, Command Line Tools: `xcode-select --install`).
 
 ## 4.3 Install wake-and-stream
 
@@ -31,13 +32,16 @@ bash ~/wake-and-stream/mac/install.sh
 ```
 
 The installer asks for: language (`en`/`de`), PC IP, Windows user, router IP, UpSnap URL, the SwiftBar
-plugin folder and – optionally – your UpSnap login for the keychain. It installs:
+plugin folder, – optionally – your UpSnap login for the keychain and whether to install the widget.
+It installs:
 
 | What | Where |
 |---|---|
 | settings, texts, icons | `~/.config/wake-and-stream/` (`config` = your values, kept on updates) |
 | `pc` command | `/usr/local/bin/pc` (needs your Mac password once) |
 | menu bar plugin | your SwiftBar plugin folder |
+| `action.sh` (what a click does: confirm, run, notify) | `~/.config/wake-and-stream/` |
+| widget + background app (optional) | `~/Applications/Wake and Stream.app` – see [chapter 10](10-widget.md) |
 
 Change settings any time in `~/.config/wake-and-stream/config` (see
 [`mac/config.example`](../mac/config.example)).

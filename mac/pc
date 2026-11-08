@@ -9,6 +9,7 @@
 #   pc off      shut the PC down
 #   pc sleep    put the PC to sleep
 #   pc status   is the PC on?
+#   pc state    machine-readable state for the widget app (key=value lines)
 #
 # German aliases: an, arbeiten (rdp), spielen (moon), stopp, zurueck, aus, standby
 # Settings: ~/.config/wake-and-stream/config   (language, IPs, user, …)
@@ -151,6 +152,10 @@ case "$1" in
     sleep 3; rm -f "$WAS_STREAM"; t sleeping ;;
   status)
     if port_open 3389; then t is_on; else t is_off; fi ;;
+  state)
+    was_state
+    printf 'home=%s\non=%s\nstream=%s\nrdp=%s\nlast=%s\nlang=%s\n' \
+      "$S_HOME" "$S_ON" "$S_STREAM" "$S_RDP" "$S_LAST" "$LANGUAGE" ;;
   *)
     if [ "$LANGUAGE" = de ]; then
       cat <<'HILFE'
