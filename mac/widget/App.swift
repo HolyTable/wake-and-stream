@@ -138,6 +138,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         var env = ProcessInfo.processInfo.environment
         env["PATH"] = "/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin"
         if confirmed { env["WAS_CONFIRMED"] = "1" }   // already confirmed in the widget → no dialog
+        env["WAS_QUIET"] = "1"   // the widget shows the state itself → notifications only for errors
         p.environment = env
         let pipe = Pipe()
         p.standardOutput = pipe

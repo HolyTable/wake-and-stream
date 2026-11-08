@@ -152,6 +152,8 @@ grep -q 'power-off.icns' "$MOCKLOG" || grep -q 'sleep.icns' "$MOCKLOG" && ok "di
 PC_ON=0 DIALOG=1 run bash "$PLUGIN" on; ! logged "curl" && ! logged "open http" && ok "Turn on (PC off) → Cancel → nothing happens" || bad "cancel on"
 DIALOG=1 run bash "$PLUGIN" play; logged "Moonlight --args stream" && ok "Play with PC already on → no question" || bad "play no confirm"
 WAS_CONFIRMED=1 DIALOG=1 run bash "$CFG/action.sh" off; logged "shutdown /s" && ! logged "display dialog" && ok "action.sh: WAS_CONFIRMED=1 (widget asked) → no dialog" || bad "confirmed"
+WAS_QUIET=1 WAS_CONFIRMED=1 run bash "$CFG/action.sh" off; logged "shutdown /s" && ! logged "display notification" && ok "action.sh: WAS_QUIET=1 → no notification on success" || bad "quiet ok"
+WAS_QUIET=1 WAS_CONFIRMED=1 SSH_OK=0 run bash "$CFG/action.sh" off; logged "display notification" && ok "action.sh: WAS_QUIET=1 → error still notified" || bad "quiet error"
 run bash "$PLUGIN" stop;        logged "--args quit" && ok "End play session → pc stop" || bad "stop action"
 
 echo "== install.sh =="

@@ -39,7 +39,7 @@ folder) – or keep both.
         both files live in ~/.config/wake-and-stream/
 ```
 
-- **`~/Applications/Wake and Stream.app`** – an invisible background app (no Dock icon, listed under
+- **`~/Applications/Wake and Stream.app`** – an invisible background app (clicks in the widget show notifications only for errors – the widget shows the state itself) (no Dock icon, listed under
   *System Settings → General → Login Items*). It does what the SwiftBar plugin did: checks the state
   every 10 seconds (`pc state`) and redraws the widget when something changes.
 - **The widget** runs in a sandbox and cannot reach the network or run scripts – it only reads the

@@ -4,6 +4,7 @@
 # Asks for confirmation where needed, runs "pc <action>" and shows the result as a notification.
 # Installed to ~/.config/wake-and-stream/action.sh (used by the SwiftBar plugin and the widget app).
 # WAS_CONFIRMED=1 skips the dialogs (the widget already asked "really …?" itself).
+# WAS_QUIET=1 shows notifications only for errors (the widget shows the state itself).
 
 # SwiftBar and the widget app start this with a minimal PATH – add the usual folders (after your own ones)
 export PATH="$PATH:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
@@ -29,14 +30,15 @@ confirm() {
   off)   confirm "$(t d_shutdown)" "$(t m_shutdown)" power-off || exit 0 ;;
   sleep) confirm "$(t d_sleep)" "$(t m_sleep)" sleep || exit 0 ;;
 esac
-case "$1" in
+[ "$WAS_QUIET" = 1 ] || case "$1" in
   on)    notify "$(t waking)" ;;
   off)   notify "$(t n_shutting)" ;;
   sleep) notify "$(t n_sleeping)" ;;
 esac
 output=$(pc "$1" 2>&1); rc=$?
 result=$(printf '%s\n' "$output" | tail -n 1)
-[ -n "$result" ] && notify "$result"
+# quiet: only errors (e.g. "PC not reachable after 3 minutes")
+if [ -n "$result" ] && { [ "$WAS_QUIET" != 1 ] || [ $rc -ne 0 ]; }; then notify "$result"; fi
 # remember "off"/"sleep" only if it worked
 if [ $rc -eq 0 ]; then case "$1" in off|sleep) echo "$1" > "$WAS_STATE" ;; esac; fi
 exit 0
