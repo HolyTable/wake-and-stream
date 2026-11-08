@@ -21,7 +21,8 @@ sedi() { local f="${*: -1}"; sed "${@:1:$#-1}" "$f" > "$f.tmp" && mv "$f.tmp" "$
 mk() { printf '#!/bin/bash\n%s\n' "$2" > "$T/bin/$1"; chmod +x "$T/bin/$1"; }
 mk ping      'echo "ping $*" >> "$MOCKLOG"; [ "${HOME_UP:-1}" = 1 ]'
 mk nc        'echo "nc $*" >> "$MOCKLOG"; [ "${PC_ON:-1}" = 1 ]'
-mk pgrep     '[ -f "$MOCKSTATE/moonlight" ] || [ "${ML_RUNNING:-0}" = 1 ]'
+mk pgrep     'case "$*" in *Moonlight*) [ -f "$MOCKSTATE/moonlight" ] || [ "${ML_RUNNING:-0}" = 1 ];;
+              *) [ "${RDP_UP:-0}" = 1 ] || [ "${RDP_APP_OPEN:-0}" = 1 ];; esac'
 mk pkill     'echo "pkill $*" >> "$MOCKLOG"; case "$*" in *Moonlight*) rm -f "$MOCKSTATE/moonlight"; export ML_RUNNING=0;; esac; exit 0'
 mk open      'echo "open $*" >> "$MOCKLOG"; case "$*" in *"Moonlight --args stream"*) touch "$MOCKSTATE/moonlight";; esac; exit 0'
 mk osascript 'echo "osascript $*" >> "$MOCKLOG"; case "$*" in *"display dialog"*) exit "${DIALOG:-0}";; esac; exit 0'
@@ -33,8 +34,9 @@ mk curl      'echo "curl $*" >> "$MOCKLOG"; data=$(cat 2>/dev/null </dev/stdin &
                 *devices/records*) echo "{\"items\":[{\"collectionId\":\"x\",\"id\":\"DEV42\",\"ip\":\"192.168.1.50\"}]}";;
                 *upsnap/wake*) echo "wake-called" >> "$MOCKLOG";;
               esac'
-mk ssh       'echo "ssh $*" >> "$MOCKLOG"; [ "${SSH_OK:-1}" = 1 ] || { echo "ssh: connect to host port 22: Operation timed out" >&2; exit 255; }'
-mk netstat   '[ "${RDP_UP:-0}" = 1 ] && echo "tcp4 0 0 192.168.1.203.50000 192.168.1.50.3389 ESTABLISHED"; echo "tcp4 0 0 192.168.1.203.50001 192.168.1.150.3389 ESTABLISHED"; exit 0'
+mk ssh       'echo "ssh $*" >> "$MOCKLOG"; [ "${SSH_OK:-1}" = 1 ] || { echo "ssh: connect to host port 22: Operation timed out" >&2; exit 255; }
+              case "$*" in *qwinsta*) echo " console  user  1  Getr."; [ "${RDP_UP:-0}" = 1 ] && echo " rdp-tcp#3  user  2  Aktiv"; echo " rdp-tcp  65536  Abh.";; esac'
+mk netstat   '[ "${NETSTAT_HIDDEN:-0}" = 1 ] && exit 0; [ "${RDP_UP:-0}" = 1 ] && echo "tcp4 0 0 192.168.1.203.50000 192.168.1.50.3389 ESTABLISHED"; echo "tcp4 0 0 192.168.1.203.50001 192.168.1.150.3389 ESTABLISHED"; exit 0'
 mk base64    'echo "BASE64DATA"'
 mk sleep     'exit 0'
 mk nohup     '"$@"'
@@ -119,6 +121,10 @@ sedi 's/^LANGUAGE=.*/LANGUAGE=en/' "$CFG/config"
 run bash "$T/bin/pc" state
 has "^home=1$" && has "^on=1$" && has "^stream=0$" && has "^lang=en$" && ok "state: machine-readable for the widget" || bad "state"
 PC_ON=0 run bash "$T/bin/pc" state; has "^on=0$" && ok "state: PC off" || bad "state off"
+RDP_UP=1 run bash "$T/bin/pc" state; has "^rdp=1$" && ! logged qwinsta && ok "state: remote desktop seen via netstat" || bad "rdp netstat"
+NETSTAT_HIDDEN=1 RDP_UP=1 run bash "$T/bin/pc" state; has "^rdp=1$" && logged qwinsta && ok "state: connection list hidden → asks the PC (qwinsta)" || bad "rdp qwinsta"
+NETSTAT_HIDDEN=1 RDP_APP_OPEN=1 run bash "$T/bin/pc" state; has "^rdp=0$" && ok "state: app open but no session → not connected" || bad "rdp qwinsta none"
+run bash "$T/bin/pc" state; has "^rdp=0$" && ! logged qwinsta && ok "state: remote desktop app closed → no check at all" || bad "rdp app closed"
 
 echo "== menu bar plugin: display =="
 reset_state

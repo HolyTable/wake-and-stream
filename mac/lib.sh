@@ -122,8 +122,18 @@ was_state() {
     S_ON=1
     [ -f "$WAS_STREAM" ] && S_STREAM=1
     pgrep -x Moonlight >/dev/null && [ $S_STREAM -eq 1 ] && S_STREAM=2
-    # open connection to port 3389 of the PC = remote desktop from this Mac
-    netstat -an -p tcp 2>/dev/null | grep -q "${PC_IP//./\\.}\.3389 .*ESTABLISHED" && S_RDP=1
+    # remote desktop from this Mac? Only possible while the remote desktop app runs.
+    if pgrep -x "$RDP_APP" >/dev/null; then
+      if netstat -an 2>/dev/null | grep -q "^tcp"; then
+        # open connection to port 3389 of the PC
+        netstat -an 2>/dev/null | grep -q "${PC_IP//./\\.}\.3389 .*ESTABLISHED" && S_RDP=1
+      else
+        # macOS hides the connection list from background apps (the widget app) → ask the PC:
+        # an active session "rdp-tcp#<n>" (state Active/Aktiv) means someone is connected
+        ssh -o BatchMode=yes -o ConnectTimeout=3 "$PC_USER@$PC_IP" qwinsta 2>/dev/null |
+          grep -q -i -E "rdp-tcp#[0-9]+ .*(activ|aktiv)" && S_RDP=1
+      fi
+    fi
     rm -f "$WAS_STATE"
   else
     rm -f "$WAS_STREAM"   # PC is off/asleep → no stream can be running

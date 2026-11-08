@@ -66,6 +66,7 @@ version by itself; if not, remove it and add it again.
 | widget says "Widget app is not running" | click *Start app*, or check *Login Items* |
 | buttons do nothing | `log show --last 5m --predicate 'process == "linkd"' \| grep -i wake` – the intent description must be indexed |
 | state is stale | `pc state` in Terminal must print `home=… on=…` (run `install.sh` again if `pc` is old) |
+| "End work" does not appear | macOS hides the connection list from background apps, so the widget app asks the PC (`ssh … qwinsta`) – SSH with keys must work |
 
 Pitfalls we hit while building it (so you don't have to):
 

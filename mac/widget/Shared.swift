@@ -91,7 +91,7 @@ enum Texts {
         case "s_sleep":       return de ? "Schläft" : "Asleep"
         case "s_nohome":      return de ? "Heimnetz nicht erreichbar" : "Home network not reachable"
         case "s_noapp":       return de ? "Widget-App läuft nicht" : "Widget app is not running"
-        case "s_rdp":         return de ? "Remotedesktop verbunden" : "Remote desktop connected"
+        case "s_rdp":         return de ? "Remotedesktop läuft" : "Remote desktop on"
         case "s_stream":      return de ? "Stream läuft" : "Streaming"
         case "s_paused":      return de ? "Stream pausiert" : "Stream paused"
         case "busy_on":       return de ? "Wird eingeschaltet …" : "Turning on …"

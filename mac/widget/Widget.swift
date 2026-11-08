@@ -65,6 +65,7 @@ struct Action: Identifiable {
     let title: String
     let symbol: String
     var destructive = false
+    var tint: Color? = nil  // own color for the highlighted button (e.g. orange for "end …")
     var url: URL { URL(string: "\(WAS.scheme)://\(id)")! }
 }
 
@@ -119,14 +120,19 @@ extension PCState {
             var detail: String?
             if rdp { detail = t("s_rdp") }
             if stream == 2 { detail = t("s_stream") } else if stream == 1 { detail = t("s_paused") }
-            let work = rdp ? Action(id: "do/release", title: t("a_work_end"), symbol: "briefcase.fill")
-                           : Action(id: "do/work", title: t("a_work"), symbol: "briefcase")
+            // while working or playing only "end …" makes sense (orange = end, red = shut down)
+            let endWork = Action(id: "do/release", title: t("a_work_end"), symbol: "stop.fill", tint: .orange)
+            let endPlay = Action(id: "do/stop", title: t("a_play_end"), symbol: "stop.fill", tint: .orange)
             var main: [Action]
-            switch stream {
-            case 2: main = [Action(id: "do/stop", title: t("a_play_end"), symbol: "stop.fill"), work]
-            case 1: main = [Action(id: "do/play", title: t("a_resume"), symbol: "play.fill"),
-                            Action(id: "do/stop", title: t("a_play_end"), symbol: "stop.fill"), work]
-            default: main = [work, Action(id: "do/play", title: t("a_play"), symbol: "gamecontroller")]
+            if rdp {
+                main = [endWork]
+            } else {
+                switch stream {
+                case 2: main = [endPlay]
+                case 1: main = [Action(id: "do/play", title: t("a_resume"), symbol: "play.fill"), endPlay]
+                default: main = [Action(id: "do/work", title: t("a_work"), symbol: "briefcase"),
+                                 Action(id: "do/play", title: t("a_play"), symbol: "gamecontroller")]
+                }
             }
             return Status(title: title, text: t("s_on"), detail: detail, symbol: "power", color: .green, main: main,
                           power: [Action(id: "ask/off", title: t("a_off"), symbol: "power", destructive: true),
@@ -186,12 +192,12 @@ struct ActionButton: View {
                     Text(action.title)
                         .font(.system(size: 12, weight: .semibold))
                         .lineLimit(1)
-                        .minimumScaleFactor(0.75)
+                        .minimumScaleFactor(0.65)
                     Spacer(minLength: 0)
                 }
             }
             .foregroundStyle(action.destructive ? Color.red : Color.primary)
-            .padding(.horizontal, iconOnly ? 0 : 10)
+            .padding(.horizontal, iconOnly ? 0 : 9)
             .frame(maxWidth: .infinity, minHeight: 28, maxHeight: 28)
             .modifier(GlassBackground(tint: prominent ? tint : nil))
             .contentShape(Capsule())
@@ -272,7 +278,7 @@ struct WidgetView: View {
                 StatusBlock(status: s, compact: s.main.count > 1 && !s.confirming)
                     .padding(.bottom, 2)
                 ForEach(Array(s.main.prefix(count).enumerated()), id: \.offset) { i, a in
-                    ActionButton(action: a, prominent: i == 0, tint: s.color)
+                    ActionButton(action: a, prominent: i == 0 || a.tint != nil, tint: a.tint ?? s.color)
                 }
             }
         } else {
@@ -289,7 +295,7 @@ struct WidgetView: View {
                     .frame(height: 28)
                     Spacer(minLength: 0)
                     ForEach(Array(s.main.prefix(3).enumerated()), id: \.offset) { i, a in
-                        ActionButton(action: a, prominent: i == 0, tint: s.color)
+                        ActionButton(action: a, prominent: i == 0 || a.tint != nil, tint: a.tint ?? s.color)
                     }
                 }
                 .frame(width: 160)
