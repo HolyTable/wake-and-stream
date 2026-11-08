@@ -23,6 +23,8 @@ enum Preview {
             ("paused", st { $0.on = true; $0.stream = 1 }),
             ("streaming", st { $0.on = true; $0.stream = 2 }),
             ("busy", st { $0.busy = "on" }),
+            ("busy-play", st { $0.on = true; $0.busy = "play" }),
+            ("busy-play-off", st { $0.busy = "play" }),
             ("ask-wake", st { $0.last = "sleep"; $0.confirm = "on" }),
             ("ask-work", st { $0.confirm = "work" }),
             ("ask-off", st { $0.on = true; $0.confirm = "off" }),

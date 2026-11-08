@@ -88,12 +88,22 @@ extension PCState {
                           main: [Action(id: "vpn", title: t("a_vpn"), symbol: "lock.shield")])
         }
         if !busy.isEmpty {
-            let key: String
-            switch busy {
-            case "on", "work", "play": key = on ? "busy_start" : "busy_on"
-            default: key = "busy_" + busy
-            }
-            return Status(title: title, text: t(key), detail: nil, symbol: "hourglass", color: .blue)
+            // what is running right now – its own text and symbol per action
+            let (key, detail, symbol, color): (String, String?, String, Color) = {
+                switch busy {
+                case "work" where on: return ("busy_work", nil, "briefcase", .green)
+                case "play" where on: return ("busy_play", nil, "gamecontroller", .green)
+                case "work":          return ("busy_on", t("busy_then_work"), "power", .green)
+                case "play":          return ("busy_on", t("busy_then_play"), "power", .green)
+                case "on":            return ("busy_on", nil, "power", .green)
+                case "stop":          return ("busy_stop", nil, "stop.fill", .orange)
+                case "release":       return ("busy_release", nil, "stop.fill", .orange)
+                case "off":           return ("busy_off", nil, "power", .red)
+                case "sleep":         return ("busy_sleep", nil, "moon.zzz", .indigo)
+                default:              return ("busy_on", nil, "hourglass", .blue)
+                }
+            }()
+            return Status(title: title, text: t(key), detail: detail, symbol: symbol, color: color)
         }
         if !confirm.isEmpty {
             // second step: "really …?" right in the widget – confirm or cancel (cancels itself after 20 s)
