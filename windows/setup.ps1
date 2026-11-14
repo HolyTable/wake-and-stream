@@ -8,17 +8,23 @@
      important, because the scheduled task runs them as SYSTEM).
   2. Downloads PsExec64.exe from Microsoft Sysinternals and checks its digital signature.
   3. Creates the scheduled task "WakeAndStream\Monitors off on remote desktop".
+  4. Creates the scheduled task "WakeAndStream\Auto sleep" (every 5 min, see auto-sleep.ps1).
   Nothing else on the system is changed. Undo: windows\uninstall.ps1
 
 .PARAMETER TurnMonitorsOnAfterRelease
   After "pc release" switch the monitors back on (default: they stay off until mouse/keyboard input).
+
+.PARAMETER AutoSleepMinutes
+  Put the PC to sleep after this many minutes without use (default 30). 0 = no auto sleep.
 #>
 param(
   [string]$InstallDir = 'C:\ProgramData\WakeAndStream',
-  [switch]$TurnMonitorsOnAfterRelease
+  [switch]$TurnMonitorsOnAfterRelease,
+  [int]$AutoSleepMinutes = 30
 )
 $ErrorActionPreference = 'Stop'
 $TaskName = 'WakeAndStream\Monitors off on remote desktop'
+$SleepTaskName = 'WakeAndStream\Auto sleep'
 
 $admin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole(
   [Security.Principal.WindowsBuiltInRole]::Administrator)
@@ -30,7 +36,7 @@ if ($InstallDir -match '\s') { Write-Host 'InstallDir must not contain spaces.' 
 
 # 1. folder + scripts
 New-Item -ItemType Directory -Force $InstallDir | Out-Null
-'release-session.bat', 'monitors-off.ps1', 'monitors-on.ps1', 'rdp-monitors-off.ps1' |
+'release-session.bat', 'monitors-off.ps1', 'monitors-on.ps1', 'rdp-monitors-off.ps1', 'auto-sleep.ps1', 'last-input.ps1' |
   ForEach-Object { Copy-Item (Join-Path $PSScriptRoot $_) $InstallDir -Force }
 $flag = Join-Path $InstallDir 'turn-monitors-on.flag'
 if ($TurnMonitorsOnAfterRelease) { New-Item -ItemType File -Force $flag | Out-Null }
@@ -68,5 +74,19 @@ if ($xml -notmatch [regex]::Escape("$InstallDir\rdp-monitors-off.ps1")) {
 }
 Write-Host "OK  scheduled task '$TaskName'"
 
+# 4. scheduled task: every 5 minutes check whether the PC is in use, sleep after $AutoSleepMinutes idle minutes
+if ($AutoSleepMinutes -gt 0) {
+  $action = "powershell -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File $InstallDir\auto-sleep.ps1 -Minutes $AutoSleepMinutes"
+  schtasks /create /f /tn $SleepTaskName /ru SYSTEM /rl HIGHEST /sc minute /mo 5 /tr $action | Out-Null
+  if ($LASTEXITCODE -ne 0) { Write-Host 'Could not create the auto sleep task.' -ForegroundColor Red; exit 1 }
+  Write-Host "OK  scheduled task '$SleepTaskName' (sleep after $AutoSleepMinutes idle minutes)"
+} else {
+  # (not "schtasks /delete ... 2>$null": with ErrorActionPreference Stop, PowerShell 5.1 would abort on its error text)
+  Get-ScheduledTask -TaskPath '\WakeAndStream\' -TaskName 'Auto sleep' -ErrorAction SilentlyContinue |
+    Unregister-ScheduledTask -Confirm:$false
+  Write-Host "-   auto sleep off (scheduled task '$SleepTaskName' removed if it existed)"
+}
+
 Write-Host ''
 Write-Host 'Done. Test: connect via remote desktop - after ~5-10 s the PC monitors turn off.'
+Write-Host "Auto sleep - what does it see right now? powershell -ExecutionPolicy Bypass -File $InstallDir\auto-sleep.ps1 -Check"

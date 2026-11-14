@@ -10,6 +10,8 @@ Every problem we actually ran into while building this, with the fix.
 | Wake from the router works, from the Mac via VPN not | magic packets don't cross the VPN | wake via UpSnap ([chapter 3](03-remote-control.md)) |
 | UpSnap shows the PC as offline although it runs | Windows blocks ping | firewall rule `FPS-ICMP4-ERQ-In` ([3.2](03-remote-control.md#32-allow-ping)) |
 | UpSnap shutdown does nothing, SSH log: *preauth close* | NAS forces `rwxrwxrwx` on the key, SSH refuses it | copy the key to `/tmp` + `chmod 600` in the command ([3.3](03-remote-control.md#33-upsnap-on-the-nas)) |
+| PC never goes to sleep by itself | something counts as "in use" | `auto-sleep.ps1 -Check` shows the **BUSY** line ([chapter 11](11-auto-sleep.md)) |
+| PC fell asleep although you wanted it to keep running | 30 idle minutes, no load | longer time or off: `setup.ps1 -AutoSleepMinutes 60` / `0` ([chapter 11](11-auto-sleep.md)) |
 | Can't paste into the container console | many NAS web consoles don't support it | download/upload files with the NAS file manager instead |
 | *Turn on* opens UpSnap's web page instead of waking directly | no/incorrect keychain login | test the login ([3.4](03-remote-control.md#34-login-for-the-mac)); if you stored a wrong user, `security delete-generic-password -s wake-and-stream-upsnap` (repeat until "could not be found") and add it again |
 | `pc` says *permission denied* | not executable | `sudo chmod +x /usr/local/bin/pc` (the installer does this) |

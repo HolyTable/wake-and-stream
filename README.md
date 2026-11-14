@@ -26,6 +26,7 @@ Moonlight, and shut it down again – all from one icon in the macOS menu bar or
 - **Play:** Moonlight + [Apollo](https://github.com/ClassicOldSong/Apollo) with a virtual display –
   the stream matches your Mac's resolution (no notch), and the PC's real monitors stay **off**.
 - **Monitors off during Remote Desktop too** (scheduled task), so nobody at home watches along.
+- **Auto sleep:** forgot to turn it off? The PC sleeps after 30 minutes without use ([chapter 11](docs/11-auto-sleep.md)).
 - **Safety:** confirmation dialogs before turning on/off, SSH with keys only, no open ports.
 - **Optional:** stream to a TV (Samsung/Tizen), German or English texts.
 
@@ -82,6 +83,7 @@ Moonlight, and shut it down again – all from one icon in the macOS menu bar or
 | 8 | [TV](docs/08-tv.md) – Moonlight on a Samsung (Tizen) TV |
 | 9 | [Test from outside](docs/09-test-from-outside.md) |
 | 10 | [Widget](docs/10-widget.md) – Notification Center / desktop widget instead of the menu bar icon |
+| 11 | [Auto sleep](docs/11-auto-sleep.md) – the PC sleeps by itself after 30 idle minutes |
 | – | [Troubleshooting](docs/troubleshooting.md) – every pitfall we hit, with the fix |
 | – | [Security](docs/security.md) – what this setup trades off and why |
 
@@ -90,7 +92,7 @@ Moonlight, and shut it down again – all from one icon in the macOS menu bar or
 ```
 mac/        pc command, SwiftBar plugin, action.sh, installer, config example, icons (+ generator)
 mac/widget/ widget + background app (Swift, built without Xcode), layout preview
-windows/    setup.ps1 / uninstall.ps1, release-session.bat, monitors off/on scripts
+windows/    setup.ps1 / uninstall.ps1, release-session.bat, monitors off/on scripts, auto sleep
 nas/        UpSnap Docker Compose stack
 docs/       the guide
 tools/      privacy check (pre-commit hook) and the Mac test suite
