@@ -202,7 +202,7 @@ pc_doctor() {
   if [ -n "$missing" ]; then dr bad "$(t dr_apps)" "$(t dr_apps_missing)$missing" "$(t dr_apps_hint)"
   else dr ok "$(t dr_apps)" "Moonlight, $RDP_APP"; fi
   if [ ! -d "$HOME/Applications/Wake and Stream.app" ]; then dr skip Widget "$(t dr_widget_none)"
-  elif pgrep -x WakeAndStream >/dev/null; then dr ok Widget "$(t dr_widget_ok)"
+  elif pgrep -a -x WakeAndStream >/dev/null; then dr ok Widget "$(t dr_widget_ok)"
   else dr bad Widget "$(t dr_widget_bad)" "$(t dr_widget_hint)"; fi
 
   [ -n "$DR_PLAIN" ] && { [ $DR_FAIL -eq 0 ]; exit; }
