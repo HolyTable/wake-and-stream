@@ -2,6 +2,9 @@
 
 Every problem we actually ran into while building this, with the fix.
 
+**Start with `pc doctor`** on the Mac – it checks every link (VPN, UpSnap, PC, SSH, Windows part, Apollo,
+Mac apps) and points to the right section below.
+
 ## Waking & shutting down
 
 | Symptom | Cause | Fix |

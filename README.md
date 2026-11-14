@@ -104,8 +104,24 @@ tools/      privacy check (pre-commit hook) and the Mac test suite
 pc on | work | play        turn on (if needed) / + remote desktop / + Moonlight
 pc stop | release          end the Moonlight stream / end remote desktop
 pc off | sleep | status
+pc doctor                  check every link once and say what is wrong (changes nothing)
 ```
-German aliases: `an`, `arbeiten`, `spielen`, `stopp`, `zurueck`, `aus`, `standby`.
+German aliases: `an`, `arbeiten`, `spielen`, `stopp`, `zurueck`, `aus`, `standby`, `doktor`.
+
+Something doesn't work? Run **`pc doctor`** first:
+
+```
+  ✓ Home network    router 192.168.1.1 answers
+  ✓ UpSnap          reachable, login OK, PC found
+  ✓ PC              on (remote desktop port 3389 answers)
+  ✗ SSH             Permission denied (publickey).
+      → "Permission denied" = key; "timed out/refused" = sshd service not running on the PC (docs/03)
+  ✓ Apollo          stream port 47989 answers
+```
+
+It checks VPN/home network, UpSnap (reachable, keychain login, PC known), the PC (ping, SSH, Windows
+scripts and scheduled tasks, auto sleep, Apollo) and the Mac apps/widget. It never wakes the PC – if the
+PC is off, the PC checks are skipped.
 
 ## Contributing
 

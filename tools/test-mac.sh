@@ -24,7 +24,7 @@ mk nc        'echo "nc $*" >> "$MOCKLOG"; [ "${PC_ON:-1}" = 1 ]'
 mk pgrep     'case "$*" in *Moonlight*) [ -f "$MOCKSTATE/moonlight" ] || [ "${ML_RUNNING:-0}" = 1 ];;
               *) [ "${RDP_UP:-0}" = 1 ] || [ "${RDP_APP_OPEN:-0}" = 1 ];; esac'
 mk pkill     'echo "pkill $*" >> "$MOCKLOG"; case "$*" in *Moonlight*) rm -f "$MOCKSTATE/moonlight"; export ML_RUNNING=0;; esac; exit 0'
-mk open      'echo "open $*" >> "$MOCKLOG"; case "$*" in *"Moonlight --args stream"*) touch "$MOCKSTATE/moonlight";; esac; exit 0'
+mk open      'echo "open $*" >> "$MOCKLOG"; case "$*" in -Ra*Moonlight*) [ "${APPS_OK:-1}" = 1 ] || exit 1;; esac; case "$*" in *"Moonlight --args stream"*) touch "$MOCKSTATE/moonlight";; esac; exit 0'
 mk osascript 'echo "osascript $*" >> "$MOCKLOG"; case "$*" in *"display dialog"*) exit "${DIALOG:-0}";; esac; exit 0'
 mk security  'echo "security $*" >> "$MOCKLOG"; [ "${KEYCHAIN_OK:-1}" = 1 ] || exit 44
               case "$*" in *" -w"*) echo "s3cr\"et";; *) echo "    \"acct\"<blob>=\"user@example.com\"";; esac'
@@ -33,9 +33,12 @@ mk curl      'echo "curl $*" >> "$MOCKLOG"; data=$(cat 2>/dev/null </dev/stdin &
                 *auth-with-password*) [ "${UPSNAP_OK:-1}" = 1 ] && echo "{\"record\":{},\"token\":\"TOKEN123\"}" || echo "{\"message\":\"Failed to authenticate.\"}";;
                 *devices/records*) echo "{\"items\":[{\"collectionId\":\"x\",\"id\":\"DEV42\",\"ip\":\"192.168.1.50\"}]}";;
                 *upsnap/wake*) echo "wake-called" >> "$MOCKLOG";;
+                *api/health*) [ "${UPSNAP_UP:-1}" = 1 ] && echo "{\"message\":\"API is healthy.\",\"code\":200}";;
               esac'
 mk ssh       'echo "ssh $*" >> "$MOCKLOG"; [ "${SSH_OK:-1}" = 1 ] || { echo "ssh: connect to host port 22: Operation timed out" >&2; exit 255; }
-              case "$*" in *qwinsta*) echo " console  user  1  Getr."; [ "${RDP_UP:-0}" = 1 ] && echo " rdp-tcp#3  user  2  Aktiv"; echo " rdp-tcp  65536  Abh.";; esac'
+              case "$*" in *"echo was-ok"*) echo was-ok;;
+                *powershell*) echo "scripts=1"; echo "psexec=1"; echo "monitors=${WIN_OK:-1}"; echo "autosleep=1"; echo "lastsleep=2026-01-01 03:00  idle for 30 min -> sleep";;
+                *qwinsta*) echo " console  user  1  Getr."; [ "${RDP_UP:-0}" = 1 ] && echo " rdp-tcp#3  user  2  Aktiv"; echo " rdp-tcp  65536  Abh.";; esac'
 mk netstat   '[ "${NETSTAT_HIDDEN:-0}" = 1 ] && exit 0; [ "${RDP_UP:-0}" = 1 ] && echo "tcp4 0 0 192.168.1.203.50000 192.168.1.50.3389 ESTABLISHED"; echo "tcp4 0 0 192.168.1.203.50001 192.168.1.150.3389 ESTABLISHED"; exit 0'
 mk base64    'echo "BASE64DATA"'
 mk sleep     'exit 0'
@@ -125,6 +128,26 @@ RDP_UP=1 run bash "$T/bin/pc" state; has "^rdp=1$" && ! logged qwinsta && ok "st
 NETSTAT_HIDDEN=1 RDP_UP=1 run bash "$T/bin/pc" state; has "^rdp=1$" && logged qwinsta && ok "state: connection list hidden → asks the PC (qwinsta)" || bad "rdp qwinsta"
 NETSTAT_HIDDEN=1 RDP_APP_OPEN=1 run bash "$T/bin/pc" state; has "^rdp=0$" && ok "state: app open but no session → not connected" || bad "rdp qwinsta none"
 run bash "$T/bin/pc" state; has "^rdp=0$" && ! logged qwinsta && ok "state: remote desktop app closed → no check at all" || bad "rdp app closed"
+
+echo "== pc doctor =="
+reset_state
+run bash "$T/bin/pc" doctor; rc=$?
+has "✓ Home network" && has "✓ UpSnap .*PC found" && has "✓ SSH" && has "✓ Windows part" && has "· Auto sleep .*-> sleep" \
+  && has "✓ Apollo" && has "All good." && [ $rc -eq 0 ] && ok "doctor: everything fine → all ✓, exit 0" || bad "doctor: all good"
+! logged "upsnap/wake" && ! logged "shutdown" && ! logged "SetSuspendState" && ok "doctor: changes nothing (no wake/shutdown/sleep)" || bad "doctor: side effects"
+HOME_UP=0 run bash "$T/bin/pc" doctor
+has "✗ Home network" && has "VPN" && has "skipped" && ! logged "ssh" && ! logged "curl" && has "1 problem" \
+  && ok "doctor: no home network → hint VPN, rest skipped" || bad "doctor: no home"
+UPSNAP_UP=0 run bash "$T/bin/pc" doctor; has "✗ UpSnap .*does not answer" && has "container" && ok "doctor: UpSnap down → hint container" || bad "doctor: upsnap down"
+KEYCHAIN_OK=0 run bash "$T/bin/pc" doctor; has "no login in the keychain" && has "add-generic-password" && ok "doctor: no keychain login → shows the command" || bad "doctor: keychain"
+UPSNAP_OK=0 run bash "$T/bin/pc" doctor; has "login is refused" && ok "doctor: wrong UpSnap login" || bad "doctor: upsnap login"
+PC_ON=0 run bash "$T/bin/pc" doctor; has "· PC .*off or asleep" && ! logged "ssh" && has "All good." && ok "doctor: PC off → PC checks skipped, not an error" || bad "doctor: pc off"
+SSH_OK=0 run bash "$T/bin/pc" doctor; has "✗ SSH .*timed out" && has "sshd" && ok "doctor: SSH fails → error text + hint" || bad "doctor: ssh"
+WIN_OK=0 run bash "$T/bin/pc" doctor; has "✗ Windows part .*task:Monitors-off" && has "setup.ps1" && ok "doctor: scheduled task missing → hint setup.ps1" || bad "doctor: windows part"
+APPS_OK=0 run bash "$T/bin/pc" doctor; rc=$?; has "✗ Mac apps .*Moonlight" && [ $rc -ne 0 ] && has "1 problem" && ok "doctor: Moonlight missing → problem counted" || bad "doctor: apps"
+sedi 's/^LANGUAGE=.*/LANGUAGE=de/' "$CFG/config"
+run bash "$T/bin/pc" doktor;               has "Alles in Ordnung." && has "✓ Heimnetz" && ok "doctor: German alias + texts" || bad "doctor: German"
+sedi 's/^LANGUAGE=.*/LANGUAGE=en/' "$CFG/config"
 
 echo "== menu bar plugin: display =="
 reset_state

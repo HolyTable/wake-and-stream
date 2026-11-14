@@ -10,8 +10,9 @@
 #   pc sleep    put the PC to sleep
 #   pc status   is the PC on?
 #   pc state    machine-readable state for the widget app (key=value lines)
+#   pc doctor   check every link (VPN, UpSnap, PC, SSH, Windows part, Apollo, Mac apps) – changes nothing
 #
-# German aliases: an, arbeiten (rdp), spielen (moon), stopp, zurueck, aus, standby
+# German aliases: an, arbeiten (rdp), spielen (moon), stopp, zurueck, aus, standby, doktor
 # Settings: ~/.config/wake-and-stream/config   (language, IPs, user, …)
 
 # shellcheck source=/dev/null
@@ -70,29 +71,136 @@ end tell
 APPLESCRIPT
 }
 
-# Wake the PC through UpSnap's API. Login comes from the macOS keychain. Returns 1 if not possible.
-upsnap_wake() {
-  local user pass json token id coll
+# Log in to UpSnap's API with the login from the macOS keychain → sets UPSNAP_TOKEN.
+# Returns 2 = no login in the keychain, 1 = UpSnap refused the login (or did not answer).
+upsnap_login() {
+  local user pass json coll
+  UPSNAP_TOKEN=""
   user=$(security find-generic-password -s "$KEYCHAIN_SERVICE" 2>/dev/null | sed -n 's/.*"acct"<blob>="\(.*\)"/\1/p')
   pass=$(security find-generic-password -s "$KEYCHAIN_SERVICE" -w 2>/dev/null)
-  [ -n "$user" ] && [ -n "$pass" ] || return 1
+  [ -n "$user" ] && [ -n "$pass" ] || return 2
   pass=${pass//\\/\\\\}; pass=${pass//\"/\\\"}                       # escape for JSON
   # UpSnap admin = PocketBase superuser, otherwise a normal user; password goes via stdin, not as an argument
   for coll in _superusers users; do
     json=$(printf '{"identity":"%s","password":"%s"}' "$user" "$pass" |
       curl -s -m 5 -X POST "$UPSNAP_URL/api/collections/$coll/auth-with-password" -H 'Content-Type: application/json' --data @-)
-    token=$(printf '%s' "$json" | sed -n 's/.*"token":"\([^"]*\)".*/\1/p')
-    [ -n "$token" ] && break
+    UPSNAP_TOKEN=$(printf '%s' "$json" | sed -n 's/.*"token":"\([^"]*\)".*/\1/p')
+    [ -n "$UPSNAP_TOKEN" ] && return 0
   done
-  [ -n "$token" ] || return 1
-  # find the PC in UpSnap by its IP
-  id=$(curl -s -m 5 -G "$UPSNAP_URL/api/collections/devices/records" -H "Authorization: $token" \
+  return 1
+}
+
+# Find the PC in UpSnap by its IP (needs upsnap_login first) → sets UPSNAP_ID. Returns 1 if not found.
+upsnap_device() {
+  UPSNAP_ID=$(curl -s -m 5 -G "$UPSNAP_URL/api/collections/devices/records" -H "Authorization: $UPSNAP_TOKEN" \
          --data-urlencode "filter=ip='$PC_IP'" | grep -o '"id":"[^"]*"' | head -n 1 | cut -d'"' -f4)
-  [ -n "$id" ] || return 1
+  [ -n "$UPSNAP_ID" ]
+}
+
+# Wake the PC through UpSnap's API. Returns 1 if not possible.
+upsnap_wake() {
+  upsnap_login && upsnap_device || return 1
   # UpSnap only answers once the PC is up – run in the background, we wait below
   # (all output to /dev/null, otherwise the menu would wait for this background request)
-  curl -s -m 150 -o /dev/null "$UPSNAP_URL/api/upsnap/wake/$id" -H "Authorization: $token" >/dev/null 2>&1 &
+  curl -s -m 150 -o /dev/null "$UPSNAP_URL/api/upsnap/wake/$UPSNAP_ID" -H "Authorization: $UPSNAP_TOKEN" >/dev/null 2>&1 &
   return 0
+}
+
+# pc doctor – checks every link of the chain once (Mac → VPN → UpSnap → PC → SSH → Windows part →
+# Apollo) and says what is wrong and where to look. Changes nothing. Exit code 1 if something failed.
+DR_FAIL=0
+dr() {  # dr ok|bad|skip|info <label> <detail> [hint]
+  local mark
+  case "$1" in ok) mark="✓";; bad) mark="✗"; DR_FAIL=$((DR_FAIL+1));; skip) mark="–";; *) mark="·";; esac
+  printf '  %s %-15s %s\n' "$mark" "$2" "$3"
+  [ -z "$4" ] || printf '      → %s\n' "$4"
+  return 0
+}
+# one SSH call, PowerShell reads the commands from stdin (no quoting through cmd.exe), answers key=value
+win_check() {
+  printf '%s\n' \
+    "\$d = '$WINDOWS_DIR'" \
+    "'scripts=' + [int](Test-Path (Join-Path \$d 'release-session.bat'))" \
+    "'psexec=' + [int](Test-Path (Join-Path \$d 'PsExec64.exe'))" \
+    "'monitors=' + [int][bool](Get-ScheduledTask -TaskPath '\\WakeAndStream\\' -TaskName 'Monitors off on remote desktop' -ErrorAction SilentlyContinue)" \
+    "'autosleep=' + [int][bool](Get-ScheduledTask -TaskPath '\\WakeAndStream\\' -TaskName 'Auto sleep' -ErrorAction SilentlyContinue)" \
+    "'lastsleep=' + (Get-Content (Join-Path \$d 'auto-sleep.log') -Tail 1 -ErrorAction SilentlyContinue)" |
+    pc_ssh powershell -NoProfile -NonInteractive -Command - 2>/dev/null | tr -d '\r'
+}
+val() { printf '%s\n' "$1" | sed -n "s/^$2=//p" | head -n 1; }
+
+pc_doctor() {
+  local rc out err missing last v
+  t dr_title
+  # 1. configuration
+  missing=""
+  for v in PC_USER ROUTER_IP UPSNAP_URL; do eval "[ -n \"\$$v\" ]" || missing="$missing $v"; done
+  if [ -n "$missing" ]; then dr bad "$(t dr_config)" "$(t dr_config_missing)$missing" "$(t dr_config_hint)"
+  else dr ok "$(t dr_config)" "$WAS_CONFIG"; fi
+
+  # 2. home network (directly or through the VPN)
+  if ! home_reachable; then
+    dr bad "$(t dr_home)" "$(t dr_home_bad)" "$(t dr_home_hint)"
+    dr skip "$(t dr_rest)" "$(t dr_rest_skipped)"
+  else
+    dr ok "$(t dr_home)" "$(t dr_home_ok)"
+
+    # 3. UpSnap: reachable, login from the keychain, PC known
+    if ! curl -s -m 5 "$UPSNAP_URL/api/health" 2>/dev/null | grep -q '"code":200'; then
+      dr bad UpSnap "$(t dr_upsnap_down)" "$(t dr_upsnap_down_hint)"
+    else
+      upsnap_login; rc=$?
+      if [ $rc -eq 2 ]; then dr bad UpSnap "$(t dr_upsnap_nokey)" "$(t dr_upsnap_nokey_hint)"
+      elif [ $rc -ne 0 ]; then dr bad UpSnap "$(t dr_upsnap_login)" "$(t dr_upsnap_login_hint)"
+      elif ! upsnap_device; then dr bad UpSnap "$(t dr_upsnap_nodev)" "$(t dr_upsnap_nodev_hint)"
+      else dr ok UpSnap "$(t dr_upsnap_ok)"; fi
+    fi
+
+    # 4. the PC itself – only if it is on (doctor never wakes it)
+    if ! port_open 3389; then
+      dr info PC "$(t dr_pc_off)"
+    else
+      dr ok PC "$(t dr_pc_on)"
+      if ping -c1 -t1 "$PC_IP" >/dev/null 2>&1; then dr ok Ping "$(t dr_ping_ok)"
+      else dr bad Ping "$(t dr_ping_bad)" "$(t dr_ping_hint)"; fi
+
+      err=$(pc_ssh 'echo was-ok' 2>&1)
+      if ! printf '%s' "$err" | grep -q was-ok; then
+        dr bad SSH "$(printf '%s' "$err" | tail -n 1)" "$(t dr_ssh_hint)"
+      else
+        dr ok SSH "$(t dr_ssh_ok)"
+        out=$(win_check)
+        missing=""
+        [ "$(val "$out" scripts)" = 1 ]  || missing="$missing release-session.bat"
+        [ "$(val "$out" psexec)" = 1 ]   || missing="$missing PsExec64.exe"
+        [ "$(val "$out" monitors)" = 1 ] || missing="$missing task:Monitors-off"
+        if [ -n "$missing" ]; then dr bad "$(t dr_win)" "$(t dr_win_missing)$missing" "$(t dr_win_hint)"
+        else dr ok "$(t dr_win)" "$WINDOWS_DIR"; fi
+        if [ "$(val "$out" autosleep)" = 1 ]; then
+          last=$(val "$out" lastsleep)
+          dr info "$(t dr_sleep)" "$(t dr_sleep_on)${last:-$(t dr_sleep_never)}"
+        else
+          dr info "$(t dr_sleep)" "$(t dr_sleep_off)"
+        fi
+      fi
+
+      if port_open 47989; then dr ok Apollo "$(t dr_apollo_ok)"
+      else dr bad Apollo "$(t dr_apollo_bad)" "$(t dr_apollo_hint)"; fi
+    fi
+  fi
+
+  # 5. on this Mac
+  missing=""
+  open -Ra Moonlight >/dev/null 2>&1 || missing="$missing Moonlight"
+  open -Ra "$RDP_APP" >/dev/null 2>&1 || missing="$missing \"$RDP_APP\""
+  if [ -n "$missing" ]; then dr bad "$(t dr_apps)" "$(t dr_apps_missing)$missing" "$(t dr_apps_hint)"
+  else dr ok "$(t dr_apps)" "Moonlight, $RDP_APP"; fi
+  if [ ! -d "$HOME/Applications/Wake and Stream.app" ]; then dr skip Widget "$(t dr_widget_none)"
+  elif pgrep -x WakeAndStream >/dev/null; then dr ok Widget "$(t dr_widget_ok)"
+  else dr bad Widget "$(t dr_widget_bad)" "$(t dr_widget_hint)"; fi
+
+  echo
+  if [ $DR_FAIL -eq 0 ]; then t dr_all_ok; else t dr_problems "$DR_FAIL"; exit 1; fi
 }
 
 # Turn the PC on if needed and wait until the given port answers
@@ -152,6 +260,8 @@ case "$1" in
     sleep 3; rm -f "$WAS_STREAM"; t sleeping ;;
   status)
     if port_open 3389; then t is_on; else t is_off; fi ;;
+  doctor|doktor|check)
+    pc_doctor ;;
   state)
     was_state
     printf 'home=%s\non=%s\nstream=%s\nrdp=%s\nlast=%s\nlang=%s\n' \
@@ -176,6 +286,7 @@ pc – Desktop-PC fernsteuern
 
   Info
     pc status      ist der PC an?
+    pc doktor      alles prüfen (VPN, UpSnap, SSH, Apollo …), sagt was fehlt
 HILFE
     else
       cat <<'HELP'
@@ -196,6 +307,7 @@ pc – control your desktop PC remotely
 
   Info
     pc status      is the PC on?
+    pc doctor      check everything (VPN, UpSnap, SSH, Apollo …), says what is wrong
 HELP
     fi ;;
 esac
