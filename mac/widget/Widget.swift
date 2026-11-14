@@ -83,9 +83,15 @@ struct Status {
 extension PCState {
     var status: Status {
         let title = t("title")
+        let check = Action(id: "doctor", title: t("a_check"), symbol: "stethoscope")
+        if doctor == "run" {
+            return Status(title: t("dr_title"), text: t("dr_running"), detail: t("dr_running_detail"),
+                          symbol: "stethoscope", color: .blue,
+                          power: [Action(id: "doctor/close", title: t("a_cancel"), symbol: "xmark")])
+        }
         if !home {
             return Status(title: title, text: t("s_nohome"), detail: nil, symbol: "wifi.exclamationmark", color: .orange,
-                          main: [Action(id: "vpn", title: t("a_vpn"), symbol: "lock.shield")])
+                          main: [Action(id: "vpn", title: t("a_vpn"), symbol: "lock.shield")], power: [check])
         }
         if !busy.isEmpty {
             // what is running right now – its own text and symbol per action
@@ -145,7 +151,8 @@ extension PCState {
                 }
             }
             return Status(title: title, text: t("s_on"), detail: detail, symbol: "power", color: .green, main: main,
-                          power: [Action(id: "ask/off", title: t("a_off"), symbol: "power", destructive: true),
+                          power: [check,
+                                  Action(id: "ask/off", title: t("a_off"), symbol: "power", destructive: true),
                                   Action(id: "ask/sleep", title: t("a_sleep"), symbol: "moon.zzz")])
         }
         let asleep = last == "sleep"
@@ -153,7 +160,25 @@ extension PCState {
                       symbol: asleep ? "moon.zzz.fill" : "power", color: asleep ? .indigo : .gray,
                       main: [Action(id: "ask/on", title: t(asleep ? "a_wake" : "a_on"), symbol: asleep ? "sun.max" : "power"),
                              Action(id: "ask/work", title: t("a_work"), symbol: "briefcase"),
-                             Action(id: "ask/play", title: t("a_play"), symbol: "gamecontroller")])
+                             Action(id: "ask/play", title: t("a_play"), symbol: "gamecontroller")],
+                      power: [check])
+    }
+
+    // MARK: result of the check
+
+    var problems: [Check] { checks.filter { $0.kind == "bad" } }
+
+    /// Summary for the result view: headline, one line below it, color and symbol
+    var doctorSummary: (text: String, detail: String, color: Color, symbol: String) {
+        if checks.isEmpty { return (t("dr_failed"), t("dr_failed_detail"), .orange, "exclamationmark") }
+        let bad = problems
+        if let first = bad.first {
+            let text = bad.count == 1 ? t("dr_bad1") : String(format: t("dr_badn"), bad.count)
+            return (text, "\(first.label): \(first.detail)", .red, "xmark")   // medium shows first.hint instead
+        }
+        let pcOff = checks.contains { $0.label == "PC" && $0.kind == "info" }
+        let n = checks.filter { $0.kind == "ok" }.count
+        return (t("dr_ok"), pcOff ? t("dr_pc_off") : String(format: t("dr_n_ok"), n), .green, "checkmark")
     }
 }
 
@@ -266,6 +291,96 @@ struct StatusBlock: View {
     }
 }
 
+/// One check in the result list: colored mark + name
+struct CheckRow: View {
+    let check: Check
+    var full = false        // also show the message (for problems)
+    var body: some View {
+        let (symbol, color): (String, Color) = {
+            switch check.kind {
+            case "ok":  return ("checkmark.circle.fill", .green)
+            case "bad": return ("xmark.circle.fill", .red)
+            case "skip": return ("minus.circle", .secondary)
+            default:    return (check.label == "PC" ? "moon.zzz" : "info.circle", .secondary)
+            }
+        }()
+        HStack(spacing: 4) {
+            Image(systemName: symbol)
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(color)
+                .frame(width: 12)
+            Text(check.label)
+                .font(.system(size: 11, weight: check.kind == "bad" ? .semibold : .regular))
+                .foregroundStyle(check.kind == "bad" ? Color.primary : Color.secondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+                .layoutPriority(1)
+            if full {
+                Text(check.detail).font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
+            }
+            Spacer(minLength: 0)
+        }
+    }
+}
+
+/// The widget after "check everything": summary, the first problem, and (medium) every check
+struct DoctorView: View {
+    let state: PCState
+    let family: WidgetFamily
+
+    var body: some View {
+        let s = state.doctorSummary
+        let again = Action(id: "doctor", title: state.t("a_again"), symbol: "arrow.clockwise")
+        let close = Action(id: "doctor/close", title: state.t("a_done"), symbol: "xmark")
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .center, spacing: 8) {
+                ZStack {
+                    Circle().fill(s.color.opacity(0.22))
+                    Image(systemName: s.symbol)
+                        .font(.system(size: family == .systemSmall ? 14 : 16, weight: .bold))
+                        .foregroundStyle(s.color)
+                        .widgetAccentable()
+                }
+                .frame(width: family == .systemSmall ? 30 : 34, height: family == .systemSmall ? 30 : 34)
+                if family != .systemSmall {
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(s.text).font(.system(size: 17, weight: .semibold)).lineLimit(1).minimumScaleFactor(0.7)
+                        Text(state.problems.first.map { $0.hint.isEmpty ? $0.detail : "→ " + $0.hint } ?? s.detail)
+                            .font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
+                            .minimumScaleFactor(0.85)
+                    }
+                }
+                Spacer(minLength: 0)
+                if family != .systemSmall { ActionButton(action: again, iconOnly: true).frame(width: 28) }
+                ActionButton(action: close, iconOnly: true).frame(width: 28)
+            }
+            if family == .systemSmall {
+                Spacer(minLength: 0)
+                Text(state.t("dr_title")).font(.system(size: 12, weight: .medium)).foregroundStyle(.secondary)
+                Text(s.text).font(.system(size: 17, weight: .semibold)).lineLimit(1).minimumScaleFactor(0.7)
+                Text(s.detail).font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 0)
+                ActionButton(action: again, prominent: true, tint: s.color)
+            } else {
+                // problems with their message first, then every other check in three columns
+                VStack(alignment: .leading, spacing: 3) {
+                    ForEach(Array(state.problems.prefix(3).enumerated()), id: \.offset) { CheckRow(check: $0.element, full: true) }
+                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 3),
+                              alignment: .leading, spacing: 3) {
+                        ForEach(Array(state.checks.filter { $0.kind != "bad" }.prefix(12).enumerated()), id: \.offset) {
+                            CheckRow(check: $0.element)
+                        }
+                    }
+                }
+                .padding(.top, 2)
+                Spacer(minLength: 0)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+}
+
 struct WidgetView: View {
     let entry: Entry
     let family: WidgetFamily
@@ -280,7 +395,9 @@ struct WidgetView: View {
 
     var body: some View {
         let s = status
-        if family == .systemSmall {
+        if let state = entry.state, state.doctor == "done" {
+            DoctorView(state: state, family: family)
+        } else if family == .systemSmall {
             // status at the top, the two most important buttons below
             // (when confirming: one button, "cancel" is the round button in the corner)
             let count = s.confirming ? 1 : 2

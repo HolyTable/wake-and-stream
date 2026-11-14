@@ -29,6 +29,20 @@ enum Preview {
             ("ask-work", st { $0.confirm = "work" }),
             ("ask-off", st { $0.on = true; $0.confirm = "off" }),
             ("nohome", st { $0.home = false }),
+            ("doctor-run", st { $0.on = true; $0.doctor = "run" }),
+            ("doctor-ok-off", st { $0.doctor = "done"; $0.checks = [
+                Check(kind: "ok", label: "Einstellungen", detail: "config"), Check(kind: "ok", label: "Heimnetz", detail: "Router antwortet"),
+                Check(kind: "ok", label: "UpSnap", detail: "ok"), Check(kind: "info", label: "PC", detail: "aus"),
+                Check(kind: "ok", label: "Mac-Apps", detail: "ok"), Check(kind: "ok", label: "Widget", detail: "läuft")] }),
+            ("doctor-bad-on", st { $0.on = true; $0.doctor = "done"; $0.checks = [
+                Check(kind: "ok", label: "Einstellungen", detail: "config"), Check(kind: "ok", label: "Heimnetz", detail: "Router antwortet"),
+                Check(kind: "bad", label: "UpSnap", detail: "erreichbar, aber der Login wird abgelehnt", hint: "Passwort in UpSnap geändert? Eintrag im Schlüsselbund neu anlegen"),
+                Check(kind: "ok", label: "PC", detail: "an"), Check(kind: "ok", label: "Ping", detail: "ok"),
+                Check(kind: "bad", label: "SSH", detail: "Permission denied (publickey).", hint: "x"),
+                Check(kind: "ok", label: "Windows-Teil", detail: "ok"), Check(kind: "info", label: "Auto-Standby", detail: "an"),
+                Check(kind: "ok", label: "Apollo", detail: "ok"), Check(kind: "ok", label: "Mac-Apps", detail: "ok"),
+                Check(kind: "ok", label: "Widget", detail: "läuft")] }),
+            ("doctor-failed", st { $0.doctor = "done" }),
             ("noapp", nil),
         ]
         for (name, state) in cases {

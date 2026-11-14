@@ -109,8 +109,13 @@ upsnap_wake() {
 # pc doctor – checks every link of the chain once (Mac → VPN → UpSnap → PC → SSH → Windows part →
 # Apollo) and says what is wrong and where to look. Changes nothing. Exit code 1 if something failed.
 DR_FAIL=0
+DR_PLAIN=""   # "pc doctor --plain": one line per check, tab-separated (read by the widget app)
 dr() {  # dr ok|bad|skip|info <label> <detail> [hint]
   local mark
+  if [ -n "$DR_PLAIN" ]; then
+    [ "$1" = bad ] && DR_FAIL=$((DR_FAIL+1))
+    printf '%s\t%s\t%s\t%s\n' "$1" "$2" "$3" "$4"; return 0
+  fi
   case "$1" in ok) mark="✓";; bad) mark="✗"; DR_FAIL=$((DR_FAIL+1));; skip) mark="–";; *) mark="·";; esac
   printf '  %s %-15s %s\n' "$mark" "$2" "$3"
   [ -z "$4" ] || printf '      → %s\n' "$4"
@@ -131,7 +136,8 @@ val() { printf '%s\n' "$1" | sed -n "s/^$2=//p" | head -n 1; }
 
 pc_doctor() {
   local rc out err missing last v
-  t dr_title
+  [ "$1" = --plain ] && DR_PLAIN=1
+  [ -n "$DR_PLAIN" ] || t dr_title
   # 1. configuration
   missing=""
   for v in PC_USER ROUTER_IP UPSNAP_URL; do eval "[ -n \"\$$v\" ]" || missing="$missing $v"; done
@@ -199,6 +205,7 @@ pc_doctor() {
   elif pgrep -x WakeAndStream >/dev/null; then dr ok Widget "$(t dr_widget_ok)"
   else dr bad Widget "$(t dr_widget_bad)" "$(t dr_widget_hint)"; fi
 
+  [ -n "$DR_PLAIN" ] && { [ $DR_FAIL -eq 0 ]; exit; }
   echo
   if [ $DR_FAIL -eq 0 ]; then t dr_all_ok; else t dr_problems "$DR_FAIL"; exit 1; fi
 }
@@ -261,7 +268,7 @@ case "$1" in
   status)
     if port_open 3389; then t is_on; else t is_off; fi ;;
   doctor|doktor|check)
-    pc_doctor ;;
+    pc_doctor "$2" ;;
   state)
     was_state
     printf 'home=%s\non=%s\nstream=%s\nrdp=%s\nlast=%s\nlang=%s\n' \

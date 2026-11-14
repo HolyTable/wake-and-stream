@@ -15,6 +15,22 @@ While something runs, the widget says so ("Turning on …").
 Needs **macOS 14 or newer** and the **Command Line Tools** (`xcode-select --install`) – no Xcode, no
 Apple developer account.
 
+## Check everything (stethoscope)
+
+The round **stethoscope** button in the corner runs [`pc doctor`](../README.md#using-the-pc-command) right in
+the widget – nothing to type, nothing changes, the PC is never woken. After a few seconds the widget shows:
+
+| Size | Result |
+|---|---|
+| small | *All good* or *2 problems* with the first problem, *Check again* below |
+| medium | headline with the fix for the first problem (→ …), each problem with its message, all other checks in three columns |
+
+✕ goes back to the normal view (it also does so by itself after 2 minutes). The full hints (e.g. the
+keychain command) are in Terminal: `pc doctor`.
+
+Under the hood the widget app runs `pc doctor --plain` – one tab-separated line per check
+(`ok|bad|skip|info`, name, message, hint) – and passes the lines to the widget in `widget-state`.
+
 ## Install
 
 `bash mac/install.sh` asks *Install the widget …?* at the end (Enter = yes). Then:

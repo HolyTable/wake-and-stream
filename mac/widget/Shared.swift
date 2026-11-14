@@ -48,6 +48,8 @@ struct PCState {
     var lang = "en"
     var busy = ""             // action that is running right now (on/work/play/stop/release/off/sleep)
     var confirm = ""          // action waiting for "really …?" in the widget
+    var doctor = ""           // "run" = check running, "done" = show the result in checks
+    var checks: [Check] = []  // result of "pc doctor --plain"
     var time = Date.distantPast
 
     init() {}
@@ -66,6 +68,8 @@ struct PCState {
             case "lang":   lang = value
             case "busy":   busy = value
             case "confirm": confirm = value
+            case "doctor": doctor = value
+            case "check":  if let c = Check(line: value) { checks.append(c) }
             case "time":   time = Date(timeIntervalSince1970: Double(value) ?? 0)
             default: break
             }
@@ -78,6 +82,27 @@ struct PCState {
     }
 
     func t(_ key: String) -> String { Texts.get(key, lang) }
+}
+
+/// One line of "pc doctor --plain": kind <tab> label <tab> detail <tab> hint
+struct Check: Hashable {
+    var kind: String          // ok / bad / skip / info
+    var label: String
+    var detail: String
+    var hint: String
+
+    init(kind: String, label: String, detail: String, hint: String = "") {
+        self.kind = kind; self.label = label; self.detail = detail; self.hint = hint
+    }
+
+    init?(line: String) {
+        let f = line.split(separator: "\t", omittingEmptySubsequences: false).map(String.init)
+        guard f.count >= 3, ["ok", "bad", "skip", "info"].contains(f[0]) else { return nil }
+        self.init(kind: f[0], label: f[1], detail: f[2], hint: f.count > 3 ? f[3] : "")
+    }
+
+    var line: String { [kind, label, detail, hint].map { $0.replacingOccurrences(of: "\n", with: " ") }
+                                                    .joined(separator: "\t") }
 }
 
 /// Texts in German and English (like t() in lib.sh).
@@ -124,6 +149,19 @@ enum Texts {
         case "a_yes_work":    return de ? "Ja, arbeiten" : "Yes, work"
         case "a_yes_play":    return de ? "Ja, spielen" : "Yes, play"
         case "a_cancel":      return de ? "Abbrechen" : "Cancel"
+        case "a_check":       return de ? "Alles prüfen" : "Check everything"
+        case "a_done":        return de ? "Fertig" : "Done"
+        case "a_again":       return de ? "Nochmal prüfen" : "Check again"
+        case "dr_title":      return de ? "Prüfung" : "Check"
+        case "dr_running":    return de ? "Prüfe alles …" : "Checking everything …"
+        case "dr_running_detail": return de ? "VPN, UpSnap, PC, Apps – ändert nichts" : "VPN, UpSnap, PC, apps – changes nothing"
+        case "dr_ok":         return de ? "Alles in Ordnung" : "All good"
+        case "dr_bad1":       return de ? "1 Problem" : "1 problem"
+        case "dr_badn":       return de ? "%d Probleme" : "%d problems"
+        case "dr_failed":     return de ? "Prüfung fehlgeschlagen" : "Check failed"
+        case "dr_failed_detail": return de ? "„pc doktor“ im Terminal ausführen" : "run \"pc doctor\" in Terminal"
+        case "dr_n_ok":       return de ? "%d Prüfungen ok" : "%d checks OK"
+        case "dr_pc_off":     return de ? "PC aus – PC-Prüfungen übersprungen" : "PC off – PC checks skipped"
         case "desc":          return de ? "PC einschalten, arbeiten, spielen und ausschalten."
                                         : "Turn your PC on, work, play and shut it down."
         default:              return key

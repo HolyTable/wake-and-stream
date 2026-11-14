@@ -5,6 +5,8 @@
 //       wakeandstream://ask/<action>  → the widget asks "really …?" itself (cancels itself after 20 s)
 //       wakeandstream://do/<action>   → ~/.config/wake-and-stream/action.sh <action> without dialog
 //       wakeandstream://cancel        → back to normal
+//       wakeandstream://doctor        → "pc doctor --plain", the widget shows the result (closes after 2 min)
+//       wakeandstream://doctor/close  → back to normal
 //       wakeandstream://<action>      → action.sh with the dialogs of the menu bar
 //     (notifications like the menu bar)
 import AppKit
@@ -18,10 +20,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var busy = ""             // action running right now
     private var confirm = ""          // action waiting for "really …?" in the widget
     private var confirmToken = 0
+    private var doctor = ""           // "run" / "done" – the widget shows the check instead of the buttons
+    private var checks: [Check] = []
+    private var doctorToken = 0
     private var lastShown = ""        // what the widget currently shows (to redraw only on changes)
     private var polling = false
     private let pollQueue = DispatchQueue(label: "wake-and-stream.poll")
     private let actionQueue = DispatchQueue(label: "wake-and-stream.action")
+    private let doctorQueue = DispatchQueue(label: "wake-and-stream.doctor")
 
     static let actions: Set<String> = ["on", "work", "play", "stop", "release", "off", "sleep"]
 
@@ -70,6 +76,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case "cancel":
             confirm = ""
             publish()
+        case "doctor" where arg == "close":
+            doctor = ""; checks = []
+            publish()
+        case "doctor":
+            runDoctor()
         default:
             handle(host)
         }
@@ -82,8 +93,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case "refresh":
             poll()
         case _ where Self.actions.contains(action):
-            guard busy.isEmpty else { return }       // one action at a time
+            guard busy.isEmpty, doctor != "run" else { return }       // one action at a time
             busy = action
+            doctor = ""; checks = []
             publish()
             actionQueue.async {
                 self.run("/bin/bash", [WAS.dir + "/action.sh", action], confirmed: confirmed)
@@ -94,6 +106,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         default:
             break
+        }
+    }
+
+    /// "pc doctor --plain" in the background; the result stays in the widget for 2 minutes
+    private func runDoctor() {
+        guard doctor != "run", busy.isEmpty else { return }
+        confirm = ""
+        doctor = "run"; checks = []
+        doctorToken += 1
+        let token = doctorToken
+        publish()
+        doctorQueue.async {
+            let out = self.run("/bin/bash", [self.pcCommand, "doctor", "--plain"])
+            let result = out.split(separator: "\n").compactMap { Check(line: String($0)) }
+            DispatchQueue.main.async {
+                guard self.doctorToken == token, self.doctor == "run" else { return }   // closed meanwhile
+                self.doctor = "done"
+                self.checks = result
+                self.publish()
+                self.poll()
+                DispatchQueue.main.asyncAfter(deadline: .now() + 120) {
+                    if self.doctorToken == token && self.doctor == "done" { self.doctor = ""; self.checks = []; self.publish() }
+                }
+            }
         }
     }
 
@@ -112,7 +148,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// Write the state file for the widget; redraw the widget only if something changed.
     private func publish() {
-        let content = stateText + "busy=\(busy)\nconfirm=\(confirm)\n"
+        var content = stateText + "busy=\(busy)\nconfirm=\(confirm)\ndoctor=\(doctor)\n"
+        for c in checks { content += "check=\(c.line)\n" }
         let file = content + "time=\(Int(Date().timeIntervalSince1970))\n"
         try? file.write(toFile: WAS.stateFile, atomically: true, encoding: .utf8)
         // also redraw once a minute, so the widget does not think the app has stopped

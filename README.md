@@ -18,7 +18,8 @@ Moonlight, and shut it down again – all from one icon in the macOS menu bar or
 - **Menu bar icon on the Mac** that shows the PC's state – on, off, asleep, or "VPN not connected" –
   with *Turn on*, *Work*, *Play*, *End session*, *Shut down*, *Sleep*.
 - **…or a widget** for Notification Center / the desktop with the same buttons – clicks run right in
-  the widget, including the "really …?" question ([chapter 10](docs/10-widget.md)).
+  the widget, including the "really …?" question, plus a stethoscope button that checks everything
+  ([chapter 10](docs/10-widget.md)).
 - **Wake-on-LAN through the VPN.** Magic packets don't cross a VPN tunnel, so a small container on
   your NAS ([UpSnap](https://github.com/seriousm4x/UpSnap)) sends them; the Mac asks it via its API.
 - **Work:** Remote Desktop (Windows App). *End work session* hands the session back to the PC

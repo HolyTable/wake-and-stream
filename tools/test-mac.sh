@@ -145,6 +145,12 @@ PC_ON=0 run bash "$T/bin/pc" doctor; has "· PC .*off or asleep" && ! logged "ss
 SSH_OK=0 run bash "$T/bin/pc" doctor; has "✗ SSH .*timed out" && has "sshd" && ok "doctor: SSH fails → error text + hint" || bad "doctor: ssh"
 WIN_OK=0 run bash "$T/bin/pc" doctor; has "✗ Windows part .*task:Monitors-off" && has "setup.ps1" && ok "doctor: scheduled task missing → hint setup.ps1" || bad "doctor: windows part"
 APPS_OK=0 run bash "$T/bin/pc" doctor; rc=$?; has "✗ Mac apps .*Moonlight" && [ $rc -ne 0 ] && has "1 problem" && ok "doctor: Moonlight missing → problem counted" || bad "doctor: apps"
+run bash "$T/bin/pc" doctor --plain; rc=$?; TAB="$(printf '\t')"
+has "^ok${TAB}Home network${TAB}" && has "^info${TAB}Auto sleep${TAB}" && ! has "checking every link" && ! has "All good" && [ $rc -eq 0 ] \
+  && ok "doctor --plain: tab-separated lines for the widget, no title/summary" || bad "doctor --plain"
+UPSNAP_OK=0 run bash "$T/bin/pc" doctor --plain; rc=$?
+has "^bad${TAB}UpSnap${TAB}reachable, but the login is refused${TAB}password changed" && [ $rc -ne 0 ] \
+  && ok "doctor --plain: problem with message + hint, exit 1" || bad "doctor --plain problem"
 sedi 's/^LANGUAGE=.*/LANGUAGE=de/' "$CFG/config"
 run bash "$T/bin/pc" doktor;               has "Alles in Ordnung." && has "✓ Heimnetz" && ok "doctor: German alias + texts" || bad "doctor: German"
 sedi 's/^LANGUAGE=.*/LANGUAGE=en/' "$CFG/config"
