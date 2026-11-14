@@ -71,8 +71,8 @@ bash mac/widget/build.sh                       # → ~/Applications/Wake and Str
 bash mac/widget/build.sh --preview /tmp/prev   # renders every state as PNG (light + dark) to check the layout
 ```
 
-The app is signed *ad hoc* (valid only on this Mac). After a rebuild the widget picks up the new
-version by itself; if not, remove it and add it again.
+The app is signed *ad hoc* (valid only on this Mac). `build.sh` quits the running widget, so macOS
+loads the new version the next time it shows the widget; if it still looks old, remove it and add it again.
 
 ## Troubleshooting
 

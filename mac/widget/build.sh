@@ -40,6 +40,8 @@ MANGLED="$("$TMP/helper" --mangled)"
 
 # quit a running copy before replacing it
 pkill -x WakeAndStream 2>/dev/null && sleep 1 || true
+# … and the running widget extension too, otherwise macOS keeps drawing with the old version for hours
+pkill -f "WakeAndStreamWidget.appex/Contents/MacOS/WakeAndStreamWidget" 2>/dev/null || true
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources" "$EXT/Contents/MacOS"
 cp "$TMP/WakeAndStream" "$APP/Contents/MacOS/"
