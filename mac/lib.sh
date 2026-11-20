@@ -216,8 +216,10 @@ t() {
     *:ps5_no_name)      echo "Name of the paired PS5 unknown – add PS5_NAME to $WAS_CONFIG (as shown in $PS5_APP)." ;;
     de:ps5_play_start)  echo "$PS5_APP startet den Stream." ;;
     *:ps5_play_start)   echo "$PS5_APP starts the stream." ;;
-    de:ps5_stopped)     echo "PS5-Stream beendet – die PS5 bleibt an (im Stream: PS-Taste → Ausschalten → Ruhemodus)." ;;
-    *:ps5_stopped)      echo "PS5 stream ended – the PS5 stays on (in the stream: PS button → Power → Rest mode)." ;;
+    de:ps5_stopped)     echo "PS5-Stream beendet (Ruhemodus je nach „Action On Disconnect“ in $PS5_APP)." ;;
+    *:ps5_stopped)      echo "PS5 stream ended (rest mode depends on \"Action On Disconnect\" in $PS5_APP)." ;;
+    de:ps5_still_open)  echo "$PS5_APP ist noch offen – fragt vermutlich nach dem Ruhemodus, bitte im Fenster antworten." ;;
+    *:ps5_still_open)   echo "$PS5_APP is still open – probably asking about rest mode, answer in its window." ;;
     de:dr_ps5)          echo "PS5" ;;
     *:dr_ps5)           echo "PS5" ;;
     de:dr_ps5_on)       echo "an ($PS5_IP antwortet)" ;;

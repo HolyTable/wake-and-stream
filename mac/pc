@@ -271,8 +271,12 @@ pc_ps5() {
       open -a "$PS5_APP" --args "$@" stream "$name" "$PS5_IP"
       t ps5_play_start ;;
     stop|stopp)
-      pkill -x "$PS5_APP" 2>/dev/null
-      t ps5_stopped ;;
+      # quit chiaki-ng normally (like ⌘Q), so its "Action On Disconnect" runs (rest mode / ask);
+      # pkill would skip that and leave the PS5 on
+      pgrep -x "$PS5_APP" >/dev/null || { t ps5_stopped; exit 0; }
+      osascript -e "tell application \"$PS5_APP\" to quit" >/dev/null 2>&1
+      for _ in $(seq 1 10); do pgrep -x "$PS5_APP" >/dev/null || { t ps5_stopped; exit 0; }; sleep 1; done
+      t ps5_still_open ;;    # chiaki-ng still asks "rest mode?" – answered in its window
     doctor|doktor|check)
       DR_PLAIN=""; [ "$2" = --plain ] && DR_PLAIN=1
       [ -n "$DR_PLAIN" ] || t dr_title
@@ -378,7 +382,7 @@ pc – Desktop-PC fernsteuern
     pc ps5         ist die PS5 an, im Ruhemodus oder aus?
     pc ps5 an      aus dem Ruhemodus wecken
     pc ps5 spielen wecken + Stream in chiaki-ng
-    pc ps5 stopp   Stream beenden (PS5 bleibt an)
+    pc ps5 stopp   Stream beenden (Ruhemodus je nach chiaki-ng)
     pc ps5 doktor  PS5-Teil prüfen
 HILFE
     else
@@ -406,7 +410,7 @@ pc – control your desktop PC remotely
     pc ps5         is the PS5 on, in rest mode or off?
     pc ps5 on      wake it from rest mode
     pc ps5 play    wake + stream in chiaki-ng
-    pc ps5 stop    end the stream (the PS5 stays on)
+    pc ps5 stop    end the stream (rest mode as set in chiaki-ng)
     pc ps5 doctor  check the PS5 part
 HELP
     fi ;;
