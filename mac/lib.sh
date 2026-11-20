@@ -23,6 +23,8 @@ PS5_CHIAKI_PLIST="$HOME/Library/Preferences/com.chiaki.Chiaki.plist"   # chiaki-
 
 # shellcheck source=/dev/null
 [ -f "$WAS_CONFIG" ] && . "$WAS_CONFIG"
+# VPN app for "Open VPN": VPN_APP in the config, else Tailscale if installed, else WireGuard
+[ -n "${VPN_APP:-}" ] || { [ -d /Applications/Tailscale.app ] && VPN_APP=Tailscale || VPN_APP=WireGuard; }
 [ -n "$APOLLO_URL" ] || APOLLO_URL="https://$PC_IP:47990"
 
 # t <key> [arg] – translated text
@@ -248,7 +250,9 @@ t() {
 port_open() { nc -z -G 2 "$PC_IP" "$1" >/dev/null 2>&1; }
 
 # Is the home network reachable (directly or through the VPN)?
-home_reachable() { ping -c1 -t1 "$ROUTER_IP" >/dev/null 2>&1; }
+# Up to 3 pings, done at the first answer: on mobile hotspots single pings get lost or take over 1 s
+# (radio waking up), which made the widget flip to "Open VPN" while the VPN was fine.
+home_reachable() { ping -o -c 3 -i 0.5 -t 3 "$ROUTER_IP" >/dev/null 2>&1; }
 
 # was_state – checks everything once and sets (used by the menu bar plugin and the widget app):
 #   S_HOME   1 = home network reachable
@@ -298,10 +302,13 @@ was_state() {
 
 # ps5_state → on / standby / off (off = no answer: switched off, no network in rest mode, wrong IP)
 ps5_state() {
-  local r
-  r=$(printf 'SRCH * HTTP/1.1\ndevice-discovery-protocol-version:00030010\n' |
-      nc -u -w 1 "$PS5_IP" "$PS5_PORT" 2>/dev/null | head -n 1)
-  case "$r" in *" 200 "*) echo on;; *" 620 "*) echo standby;; *) echo off;; esac
+  local r _
+  for _ in 1 2; do   # UDP can get lost on mobile networks – ask a second time before saying "off"
+    r=$(printf 'SRCH * HTTP/1.1\ndevice-discovery-protocol-version:00030010\n' |
+        nc -u -w 1 "$PS5_IP" "$PS5_PORT" 2>/dev/null | head -n 1)
+    case "$r" in *" 200 "*) echo on; return;; *" 620 "*) echo standby; return;; esac
+  done
+  echo off
 }
 
 # ps5_chiaki_value <key> – first value of <key> in chiaki-ng's settings (Qt stores them in a plist,

@@ -36,7 +36,7 @@ fi
 if ! home_reachable; then
   echo "| sfimage=exclamationmark.triangle"
   echo "---"
-  echo "$(t m_open_vpn) | bash=/usr/bin/open param1=-a param2=WireGuard terminal=false sfimage=lock.shield"
+  echo "$(t m_open_vpn) | bash=/usr/bin/open param1=-a param2="$VPN_APP" terminal=false sfimage=lock.shield"
   exit 0
 fi
 

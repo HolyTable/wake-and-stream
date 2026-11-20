@@ -90,7 +90,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func handle(_ action: String, confirmed: Bool = false) {
         switch action {
         case "vpn":
-            run("/usr/bin/open", ["-a", "WireGuard"])
+            // same as VPN_APP in lib.sh: Tailscale if installed, else WireGuard
+            let ts = FileManager.default.fileExists(atPath: "/Applications/Tailscale.app")
+            run("/usr/bin/open", ["-a", ts ? "Tailscale" : "WireGuard"])
         case "refresh":
             poll()
         case _ where Self.actions.contains(action):

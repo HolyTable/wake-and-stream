@@ -12,6 +12,8 @@ PC_USER=your-windows-user
 
 # Your router – used to check whether the home network is reachable (VPN up?)
 ROUTER_IP=192.168.1.1
+# App behind "Open VPN" (default: Tailscale if installed, else WireGuard)
+#VPN_APP=Tailscale
 
 # UpSnap on your NAS/server (wakes the PC; magic packets don't cross the VPN)
 UPSNAP_URL=http://192.168.1.10:8090
