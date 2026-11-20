@@ -17,7 +17,7 @@ APOLLO_URL=""; STREAM_APP=Desktop
 WINDOWS_DIR='C:\ProgramData\WakeAndStream'
 RDP_APP="Windows App"; RDP_PC_NAME=Desktop
 PLAY_FULLSCREEN=no
-PS5_IP=""; PS5_NAME=""; PS5_REGISTKEY=""; PS5_APP=chiaki-ng; PS5_FULLSCREEN=no
+PS5_IP=""; PS5_NAME=""; PS5_REGISTKEY=""; PS5_APP=chiaki-ng; PS5_PROC=chiaki; PS5_FULLSCREEN=no   # PS5_PROC: process name of chiaki-ng
 PS5_PORT=9302                             # PS5 discovery/wake port (only changed by the tests)
 PS5_CHIAKI_PLIST="$HOME/Library/Preferences/com.chiaki.Chiaki.plist"   # chiaki-ng's settings
 
@@ -216,8 +216,8 @@ t() {
     *:ps5_no_name)      echo "Name of the paired PS5 unknown – add PS5_NAME to $WAS_CONFIG (as shown in $PS5_APP)." ;;
     de:ps5_play_start)  echo "$PS5_APP startet den Stream." ;;
     *:ps5_play_start)   echo "$PS5_APP starts the stream." ;;
-    de:ps5_stopped)     echo "PS5-Stream beendet (Ruhemodus je nach „Action On Disconnect“ in $PS5_APP)." ;;
-    *:ps5_stopped)      echo "PS5 stream ended (rest mode depends on \"Action On Disconnect\" in $PS5_APP)." ;;
+    de:ps5_stopped)     echo "PS5-Stream beendet. Die PS5 bleibt an – Ruhemodus vorher im Stream: PS-Taste → Ausschalten → Ruhemodus." ;;
+    *:ps5_stopped)      echo "PS5 stream ended. The PS5 stays on – for rest mode, first in the stream: PS button → Power → Rest mode." ;;
     de:ps5_still_open)  echo "$PS5_APP ist noch offen – fragt vermutlich nach dem Ruhemodus, bitte im Fenster antworten." ;;
     *:ps5_still_open)   echo "$PS5_APP is still open – probably asking about rest mode, answer in its window." ;;
     de:dr_ps5)          echo "PS5" ;;
@@ -265,7 +265,7 @@ was_state() {
   S_HOME=1
   if [ -n "$PS5_IP" ]; then
     S_PS5=$(ps5_state)
-    pgrep -x "$PS5_APP" >/dev/null && S_PS5PLAY=1
+    pgrep -x "$PS5_PROC" >/dev/null && S_PS5PLAY=1
   fi
   if port_open 3389; then
     S_ON=1

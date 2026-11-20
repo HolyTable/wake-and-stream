@@ -206,10 +206,10 @@ logged "open -a chiaki-ng --args --exit-app-on-stream-exit stream PS5-Wohnzimmer
   && ok "ps5 play: wakes, then chiaki-ng stream with the paired name (options before 'stream')" || bad "ps5 play"
 sedi 's/^PS5_FULLSCREEN=.*/PS5_FULLSCREEN=yes/' "$CFG/config"
 PS5=on CK_RUNNING=1 run bash "$T/bin/pc" ps5 spielen
-logged "pkill -x chiaki-ng" && logged "args --exit-app-on-stream-exit --fullscreen stream" && ok "ps5 spielen: closes open chiaki-ng first, full screen" || bad "ps5 play fullscreen"
+logged "pkill -x chiaki" && logged "args --exit-app-on-stream-exit --fullscreen stream" && ok "ps5 spielen: closes open chiaki-ng first, full screen" || bad "ps5 play fullscreen"
 sedi 's/^PS5_FULLSCREEN=.*/PS5_FULLSCREEN=no/' "$CFG/config"
 CK_RUNNING=1 run bash "$T/bin/pc" ps5 stop
-logged 'tell application "chiaki-ng" to quit' && ! logged "pkill -x chiaki-ng" && has "still open" \
+logged 'tell application "chiaki-ng" to quit' && ! logged "pkill -x chiaki" && has "still open" \
   && ok "ps5 stop: quits chiaki-ng normally (its disconnect action runs), no pkill" || bad "ps5 stop"
 run bash "$T/bin/pc" ps5 stop;              ! logged "osascript" && has "stream ended" && ok "ps5 stop: chiaki-ng not open → nothing to do" || bad "ps5 stop: not open"
 mv "$MOCKSTATE/chiaki.xml" "$MOCKSTATE/chiaki.off"

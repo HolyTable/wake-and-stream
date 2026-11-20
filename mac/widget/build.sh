@@ -49,6 +49,11 @@ cp "$HERE/App-Info.plist" "$APP/Contents/Info.plist"
 cp "$HERE/../icons/power-on.icns" "$APP/Contents/Resources/AppIcon.icns"
 cp "$TMP/WakeAndStreamWidget" "$EXT/Contents/MacOS/"
 cp "$HERE/Widget-Info.plist" "$EXT/Contents/Info.plist"
+# new build number on every build – otherwise macOS keeps the old list of widgets (e.g. a new widget kind
+# does not show up in the gallery)
+BUILD="$(date +%Y%m%d%H%M%S)"
+plutil -replace CFBundleVersion -string "$BUILD" "$APP/Contents/Info.plist"
+plutil -replace CFBundleVersion -string "$BUILD" "$EXT/Contents/Info.plist"
 mkdir -p "$EXT/Contents/Resources/Metadata.appintents"
 sed "s/@MANGLED@/$MANGLED/g" "$HERE/extract.actionsdata.template" > "$EXT/Contents/Resources/Metadata.appintents/extract.actionsdata"
 printf '{\n  "toolsVersion" : "27A225b",\n  "version" : "3.0"\n}\n' > "$EXT/Contents/Resources/Metadata.appintents/version.json"
@@ -56,4 +61,7 @@ printf '{\n  "toolsVersion" : "27A225b",\n  "version" : "3.0"\n}\n' > "$EXT/Cont
 # sign: first the widget (sandbox is required for widgets), then the app around it
 codesign --force --sign - --entitlements "$HERE/Widget.entitlements" "$EXT"
 codesign --force --sign - "$APP"
+# tell macOS about the new version at once
+/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f "$APP" >/dev/null 2>&1 || true
+pluginkit -a "$EXT" >/dev/null 2>&1 || true
 echo "✓ $APP"
