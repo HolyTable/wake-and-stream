@@ -93,6 +93,8 @@ extension PCState {
             return Status(title: title, text: t("s_nohome"), detail: nil, symbol: "wifi.exclamationmark", color: .orange,
                           main: [Action(id: "vpn", title: t("a_vpn"), symbol: "lock.shield")], power: [check])
         }
+        let busy = self.busy.hasPrefix("ps5") ? "" : self.busy          // PS5 actions show in the PS5 widget
+        let confirm = self.confirm.hasPrefix("ps5") ? "" : self.confirm
         if !busy.isEmpty {
             // what is running right now – its own text and symbol per action
             let (key, detail, symbol, color): (String, String?, String, Color) = {
@@ -162,6 +164,55 @@ extension PCState {
                              Action(id: "ask/work", title: t("a_work"), symbol: "briefcase"),
                              Action(id: "ask/play", title: t("a_play"), symbol: "gamecontroller")],
                       power: [check])
+    }
+
+    // MARK: PlayStation 5 widget
+
+    var ps5Status: Status {
+        let title = t("ps5_title")
+        let logo = "playstation.logo"
+        if !home {
+            return Status(title: title, text: t("s_nohome"), detail: nil, symbol: "wifi.exclamationmark", color: .orange,
+                          main: [Action(id: "vpn", title: t("a_vpn"), symbol: "lock.shield")])
+        }
+        if ps5 == "none" {
+            return Status(title: title, text: t("s_ps5_none"), detail: t("s_ps5_none_detail"), symbol: logo, color: .gray)
+        }
+        if busy.hasPrefix("ps5") {
+            let (text, detail, color): (String, String?, Color) = {
+                switch busy {
+                case "ps5-play" where ps5 == "on": return (t("busy_play"), nil, .blue)
+                case "ps5-play": return (t("busy_ps5_on"), t("busy_then_play"), .blue)
+                case "ps5-stop": return (t("busy_ps5_stop"), nil, .orange)
+                default:         return (t("busy_ps5_on"), nil, .blue)
+                }
+            }()
+            return Status(title: title, text: text, detail: detail, symbol: "hourglass", color: color)
+        }
+        if confirm.hasPrefix("ps5") {
+            let play = confirm == "ps5-play"
+            return Status(title: title, text: t(play ? "q_ps5_play" : "q_ps5_on"), detail: nil,
+                          symbol: "questionmark", color: .blue,
+                          main: [Action(id: "do/" + confirm, title: t(play ? "a_yes_play" : "a_wake"),
+                                        symbol: play ? "gamecontroller" : "sun.max"),
+                                 Action(id: "cancel", title: t("a_cancel"), symbol: "xmark")],
+                          power: [Action(id: "cancel", title: t("a_cancel"), symbol: "xmark")],
+                          confirming: true)
+        }
+        switch ps5 {
+        case "on":
+            let main = ps5play
+                ? [Action(id: "do/ps5-stop", title: t("a_play_end"), symbol: "stop.fill", tint: .orange)]
+                : [Action(id: "do/ps5-play", title: t("a_play"), symbol: "gamecontroller")]
+            return Status(title: title, text: t("s_ps5_on"), detail: ps5play ? t("s_ps5_stream") : nil,
+                          symbol: logo, color: .blue, main: main)
+        case "standby":
+            return Status(title: title, text: t("s_ps5_rest"), detail: nil, symbol: "moon.zzz.fill", color: .indigo,
+                          main: [Action(id: "ask/ps5-play", title: t("a_play"), symbol: "gamecontroller"),
+                                 Action(id: "ask/ps5-on", title: t("a_wake"), symbol: "sun.max")])
+        default:
+            return Status(title: title, text: t("s_ps5_off"), detail: t("s_ps5_off_detail"), symbol: logo, color: .gray)
+        }
     }
 
     // MARK: result of the check
@@ -384,18 +435,19 @@ struct DoctorView: View {
 struct WidgetView: View {
     let entry: Entry
     let family: WidgetFamily
+    var ps5 = false          // the PlayStation 5 widget (same layout, other state)
 
     var status: Status {
-        if let state = entry.state { return state.status }
+        if let state = entry.state { return ps5 ? state.ps5Status : state.status }
         let lang = Texts.systemLang
-        return Status(title: "PC", text: Texts.get("s_noapp", lang), detail: nil, symbol: "exclamationmark",
+        return Status(title: ps5 ? "PS5" : "PC", text: Texts.get("s_noapp", lang), detail: nil, symbol: "exclamationmark",
                       color: .orange,
                       main: [Action(id: "refresh", title: Texts.get("a_start_app", lang), symbol: "play.circle")])
     }
 
     var body: some View {
         let s = status
-        if let state = entry.state, state.doctor == "done" {
+        if !ps5, let state = entry.state, state.doctor == "done" {
             DoctorView(state: state, family: family)
         } else if family == .systemSmall {
             // status at the top, the two most important buttons below
@@ -435,7 +487,8 @@ struct WidgetView: View {
 struct WidgetEntryView: View {
     @Environment(\.widgetFamily) var family
     let entry: Entry
-    var body: some View { WidgetView(entry: entry, family: family) }
+    var ps5 = false
+    var body: some View { WidgetView(entry: entry, family: family, ps5: ps5) }
 }
 
 struct WakeAndStreamWidget: Widget {
@@ -446,6 +499,19 @@ struct WakeAndStreamWidget: Widget {
         }
         .configurationDisplayName("Wake and Stream")
         .description(Texts.get("desc", Texts.systemLang))
+        .supportedFamilies([.systemSmall, .systemMedium])
+    }
+}
+
+/// Second widget: the PlayStation 5 (only useful with PS5_IP in the config)
+struct PS5Widget: Widget {
+    var body: some WidgetConfiguration {
+        StaticConfiguration(kind: WAS.ps5WidgetKind, provider: Provider()) { entry in
+            WidgetEntryView(entry: entry, ps5: true)
+                .containerBackground(.fill.tertiary, for: .widget)
+        }
+        .configurationDisplayName("Wake and Stream – PS5")
+        .description(Texts.get("ps5_desc", Texts.systemLang))
         .supportedFamilies([.systemSmall, .systemMedium])
     }
 }

@@ -1,6 +1,6 @@
 #!/bin/bash
 # wake-and-stream – runs one action after a click in the menu bar or the widget:
-#   action.sh <on|work|play|stop|release|off|sleep>
+#   action.sh <on|work|play|stop|release|off|sleep|ps5-on|ps5-play|ps5-stop>
 # Asks for confirmation where needed, runs "pc <action>" and shows the result as a notification.
 # Installed to ~/.config/wake-and-stream/action.sh (used by the SwiftBar plugin and the widget app).
 # WAS_CONFIRMED=1 skips the dialogs (the widget already asked "really …?" itself).
@@ -35,7 +35,10 @@ esac
   off)   notify "$(t n_shutting)" ;;
   sleep) notify "$(t n_sleeping)" ;;
 esac
-output=$(pc "$1" 2>&1); rc=$?
+# ps5-<x> → "pc ps5 <x>" (only from the widget, which asks itself)
+case "$1" in ps5-*) cmd="ps5 ${1#ps5-}";; *) cmd="$1";; esac
+# shellcheck disable=SC2086
+output=$(pc $cmd 2>&1); rc=$?
 result=$(printf '%s\n' "$output" | tail -n 1)
 # quiet: only errors (e.g. "PC not reachable after 3 minutes")
 if [ -n "$result" ] && { [ "$WAS_QUIET" != 1 ] || [ $rc -ne 0 ]; }; then notify "$result"; fi

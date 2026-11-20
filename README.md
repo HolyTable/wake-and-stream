@@ -85,6 +85,7 @@ Moonlight, and shut it down again – all from one icon in the macOS menu bar or
 | 9 | [Test from outside](docs/09-test-from-outside.md) |
 | 10 | [Widget](docs/10-widget.md) – Notification Center / desktop widget instead of the menu bar icon |
 | 11 | [Auto sleep](docs/11-auto-sleep.md) – the PC sleeps by itself after 30 idle minutes |
+| 12 | [PlayStation 5](docs/12-ps5.md) – optional: wake the PS5 and play it through chiaki-ng |
 | – | [Troubleshooting](docs/troubleshooting.md) – every pitfall we hit, with the fix |
 | – | [Security](docs/security.md) – what this setup trades off and why |
 
@@ -106,6 +107,7 @@ pc on | work | play        turn on (if needed) / + remote desktop / + Moonlight
 pc stop | release          end the Moonlight stream / end remote desktop
 pc off | sleep | status
 pc doctor                  check every link once and say what is wrong (changes nothing)
+pc ps5 [on|play|stop|doctor]   optional PlayStation 5 through chiaki-ng (docs/12-ps5.md)
 ```
 German aliases: `an`, `arbeiten`, `spielen`, `stopp`, `zurueck`, `aus`, `standby`, `doktor`.
 

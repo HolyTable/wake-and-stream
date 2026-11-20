@@ -15,6 +15,15 @@ enum Preview {
         WAS.preview = true
         let out = CommandLine.arguments.count > 1 ? CommandLine.arguments[1] : "."
         func st(_ f: (inout PCState) -> Void) -> PCState { var s = PCState(); s.home = true; s.lang = "de"; f(&s); return s }
+        let ps5cases: [(String, PCState)] = [
+            ("ps5-rest", st { $0.ps5 = "standby" }),
+            ("ps5-on", st { $0.ps5 = "on" }),
+            ("ps5-streaming", st { $0.ps5 = "on"; $0.ps5play = true }),
+            ("ps5-busy", st { $0.ps5 = "standby"; $0.busy = "ps5-play" }),
+            ("ps5-ask", st { $0.ps5 = "standby"; $0.confirm = "ps5-play" }),
+            ("ps5-off", st { $0.ps5 = "off" }),
+            ("ps5-none", st { _ in }),
+        ]
         let cases: [(String, PCState?)] = [
             ("off", st { _ in }),
             ("sleep", st { $0.last = "sleep" }),
@@ -45,11 +54,11 @@ enum Preview {
             ("doctor-failed", st { $0.doctor = "done" }),
             ("noapp", nil),
         ]
-        for (name, state) in cases {
+        for (name, state, isPS5) in cases.map({ ($0.0, $0.1, false) }) + ps5cases.map({ ($0.0, Optional($0.1), true) }) {
             for (fam, size) in [(WidgetFamily.systemSmall, CGSize(width: 170, height: 170)),
                                 (.systemMedium, CGSize(width: 364, height: 170))] {
                 for dark in [false, true] {
-                    let view = WidgetView(entry: Entry(date: Date(), state: state), family: fam)
+                    let view = WidgetView(entry: Entry(date: Date(), state: state), family: fam, ps5: isPS5)
                         .padding(16)
                         .frame(width: size.width, height: size.height)
                         .background(dark ? Color(white: 0.17) : Color(white: 0.93),

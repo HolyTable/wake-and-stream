@@ -4,5 +4,8 @@ import WidgetKit
 
 @main
 struct WakeAndStreamBundle: WidgetBundle {
-    var body: some Widget { WakeAndStreamWidget() }
+    var body: some Widget {
+        WakeAndStreamWidget()
+        PS5Widget()
+    }
 }

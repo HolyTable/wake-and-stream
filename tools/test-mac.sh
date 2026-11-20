@@ -5,7 +5,8 @@
 #   bash tools/test-mac.sh
 #
 # Scenario switches (set per test): HOME_UP, PC_ON, ML_RUNNING (Moonlight open), RDP_UP,
-# DIALOG (0 = user confirms, 1 = cancels), UPSNAP_OK, KEYCHAIN_OK
+# DIALOG (0 = user confirms, 1 = cancels), UPSNAP_OK, KEYCHAIN_OK,
+# PS5 (on/standby/off), CK_RUNNING (chiaki-ng open), CK_OK (chiaki-ng installed)
 set -u
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
 T="$(mktemp -d)"
@@ -20,11 +21,23 @@ sedi() { local f="${*: -1}"; sed "${@:1:$#-1}" "$f" > "$f.tmp" && mv "$f.tmp" "$
 # ---------- fake commands ----------
 mk() { printf '#!/bin/bash\n%s\n' "$2" > "$T/bin/$1"; chmod +x "$T/bin/$1"; }
 mk ping      'echo "ping $*" >> "$MOCKLOG"; [ "${HOME_UP:-1}" = 1 ]'
-mk nc        'echo "nc $*" >> "$MOCKLOG"; [ "${PC_ON:-1}" = 1 ]'
+# nc: TCP port checks of the PC; with -u it plays the PS5 (answers SRCH, remembers WAKEUP)
+mk nc        'echo "nc $*" >> "$MOCKLOG"
+              if [ "$1" = -u ]; then in=$(cat); printf "udp %s\n" "$(printf "%s" "$in" | tr "\n" " ")" >> "$MOCKLOG"
+                case "$in" in
+                  SRCH*) case "${PS5:-standby}" in
+                           on) echo "HTTP/1.1 200 Ok";;
+                           standby) [ -f "$MOCKSTATE/ps5woke" ] && echo "HTTP/1.1 200 Ok" || echo "HTTP/1.1 620 Server Standby";;
+                         esac;;
+                  WAKEUP*) [ "${PS5:-standby}" = off ] || touch "$MOCKSTATE/ps5woke";;
+                esac; exit 0; fi
+              [ "${PC_ON:-1}" = 1 ]'
+cp "$T/bin/nc" "$T/nc.full"
 mk pgrep     'case "$*" in *Moonlight*) [ -f "$MOCKSTATE/moonlight" ] || [ "${ML_RUNNING:-0}" = 1 ];;
+              *chiaki*) [ "${CK_RUNNING:-0}" = 1 ];;
               *) [ "${RDP_UP:-0}" = 1 ] || [ "${RDP_APP_OPEN:-0}" = 1 ];; esac'
 mk pkill     'echo "pkill $*" >> "$MOCKLOG"; case "$*" in *Moonlight*) rm -f "$MOCKSTATE/moonlight"; export ML_RUNNING=0;; esac; exit 0'
-mk open      'echo "open $*" >> "$MOCKLOG"; case "$*" in -Ra*Moonlight*) [ "${APPS_OK:-1}" = 1 ] || exit 1;; esac; case "$*" in *"Moonlight --args stream"*) touch "$MOCKSTATE/moonlight";; esac; exit 0'
+mk open      'echo "open $*" >> "$MOCKLOG"; case "$*" in -Ra*Moonlight*) [ "${APPS_OK:-1}" = 1 ] || exit 1;; -Ra*chiaki*) [ "${CK_OK:-1}" = 1 ] || exit 1;; esac; case "$*" in *"Moonlight --args stream"*) touch "$MOCKSTATE/moonlight";; esac; exit 0'
 mk osascript 'echo "osascript $*" >> "$MOCKLOG"; case "$*" in *"display dialog"*) exit "${DIALOG:-0}";; esac; exit 0'
 mk security  'echo "security $*" >> "$MOCKLOG"; [ "${KEYCHAIN_OK:-1}" = 1 ] || exit 44
               case "$*" in *" -w"*) echo "s3cr\"et";; *) echo "    \"acct\"<blob>=\"user@example.com\"";; esac'
@@ -40,7 +53,9 @@ mk ssh       'echo "ssh $*" >> "$MOCKLOG"; [ "${SSH_OK:-1}" = 1 ] || { echo "ssh
                 *powershell*) echo "scripts=1"; echo "psexec=1"; echo "monitors=${WIN_OK:-1}"; echo "autosleep=1"; echo "lastsleep=2026-01-01 03:00  idle for 30 min -> sleep";;
                 *qwinsta*) echo " console  user  1  Getr."; [ "${RDP_UP:-0}" = 1 ] && echo " rdp-tcp#3  user  2  Aktiv"; echo " rdp-tcp  65536  Abh.";; esac'
 mk netstat   '[ "${NETSTAT_HIDDEN:-0}" = 1 ] && exit 0; [ "${RDP_UP:-0}" = 1 ] && echo "tcp4 0 0 192.168.1.203.50000 192.168.1.50.3389 ESTABLISHED"; echo "tcp4 0 0 192.168.1.203.50001 192.168.1.150.3389 ESTABLISHED"; exit 0'
-mk base64    'echo "BASE64DATA"'
+mk base64    'case "$1" in -D|-d) /usr/bin/base64 -D 2>/dev/null || /usr/bin/base64 -d;; *) echo "BASE64DATA";; esac'
+# plutil: chiaki-ng settings as XML (written by the PS5 tests into $MOCKSTATE/chiaki.xml)
+mk plutil    'cat "$MOCKSTATE/chiaki.xml" 2>/dev/null'
 mk sleep     'exit 0'
 mk nohup     '"$@"'
 
@@ -87,7 +102,7 @@ rm -f "$MOCKSTATE/nccount"; PC_ON=0 UPSNAP_OK=0 run bash "$T/bin/pc" on
 has "Could not wake the PC directly" && logged "open http://192.168.1.10:8090" && ok "on: wrong login → falls back to UpSnap page" || bad "on: fallback"
 rm -f "$MOCKSTATE/nccount"; PC_ON=0 KEYCHAIN_OK=0 run bash "$T/bin/pc" on
 has "Could not wake the PC directly" && ! logged "curl" && ok "on: no keychain entry → fallback, no API call" || bad "on: no keychain"
-printf '#!/bin/bash\necho "nc $*" >> "$MOCKLOG"; [ "${PC_ON:-1}" = 1 ]\n' > "$T/bin/nc"
+cp "$T/nc.full" "$T/bin/nc"
 
 reset_state; run bash "$T/bin/pc" play
 logged "open -a Moonlight --args stream 192.168.1.50 Desktop" && [ -f "$CFG/stream-active" ] && has "Starting Moonlight" \
@@ -154,6 +169,65 @@ has "^bad${TAB}UpSnap${TAB}reachable, but the login is refused${TAB}password cha
 sedi 's/^LANGUAGE=.*/LANGUAGE=de/' "$CFG/config"
 run bash "$T/bin/pc" doktor;               has "Alles in Ordnung." && has "✓ Heimnetz" && ok "doctor: German alias + texts" || bad "doctor: German"
 sedi 's/^LANGUAGE=.*/LANGUAGE=en/' "$CFG/config"
+
+echo "== pc ps5 =="
+reset_state
+run bash "$T/bin/pc" ps5;                   has "No PS5 set up" && ok "ps5: no PS5_IP → hint" || bad "ps5: no config"
+run bash "$T/bin/pc" state;                 has "^ps5=none$" && ! grep -q "^nc -u" "$MOCKLOG" && ok "state: no PS5 → ps5=none, no UDP" || bad "state: ps5 none"
+sedi 's/^PS5_IP=.*/PS5_IP=192.168.1.60/' "$CFG/config"
+# chiaki-ng's pairing: key "a1b2c3d4" as 16 bytes (zero-padded) + console name
+mkdir -p "$T/home/Library/Preferences"; touch "$T/home/Library/Preferences/com.chiaki.Chiaki.plist"
+KEYB64=$(printf 'a1b2c3d4\0\0\0\0\0\0\0\0' | /usr/bin/base64)
+cat > "$MOCKSTATE/chiaki.xml" <<EOF
+<dict>
+	<key>registered_hosts.1.rp_regist_key</key>
+	<data>
+	$KEYB64
+	</data>
+	<key>registered_hosts.1.server_nickname</key>
+	<string>PS5-Wohnzimmer</string>
+	<key>registered_hosts.size</key>
+	<integer>1</integer>
+</dict>
+EOF
+ps5reset() { rm -f "$MOCKSTATE/ps5woke"; }
+ps5reset; run bash "$T/bin/pc" ps5;         has "rest mode" && grep -q "nc -u -w 1 192.168.1.60 9302" "$MOCKLOG" && ok "ps5: rest mode seen via UDP 9302" || bad "ps5: status standby"
+PS5=on run bash "$T/bin/pc" ps5;            has "PS5 is on" && ok "ps5: on" || bad "ps5: status on"
+PS5=off run bash "$T/bin/pc" ps5;           has "does not answer" && ok "ps5: no answer → off" || bad "ps5: status off"
+HOME_UP=0 run bash "$T/bin/pc" ps5 on;      has "Home network not reachable" && ok "ps5 on: no VPN → message" || bad "ps5 on: no VPN"
+ps5reset; run bash "$T/bin/pc" ps5 on
+logged "udp WAKEUP \* HTTP/1.1 client-type:vr auth-type:R model:w app-type:r user-credential:2712847316 device-discovery-protocol-version:00030010" \
+  && has "PS5 is ready" && ok "ps5 on: wake packet with key from chiaki-ng (0xa1b2c3d4 = 2712847316)" || bad "ps5 on: wake"
+PS5=on run bash "$T/bin/pc" ps5 on;         has "already on" && ! logged "WAKEUP" && ok "ps5 on: already on → no wake packet" || bad "ps5 on: already on"
+ps5reset; PS5=off run bash "$T/bin/pc" ps5 on; rc=$?
+[ $rc -ne 0 ] && has "does not answer" && [ "$(grep -c WAKEUP "$MOCKLOG")" -ge 2 ] && ok "ps5 on: never answers → tries again, then error" || bad "ps5 on: off"
+ps5reset; run bash "$T/bin/pc" ps5 play
+logged "open -a chiaki-ng --args --exit-app-on-stream-exit stream PS5-Wohnzimmer 192.168.1.60" && has "starts the stream" \
+  && ok "ps5 play: wakes, then chiaki-ng stream with the paired name (options before 'stream')" || bad "ps5 play"
+sedi 's/^PS5_FULLSCREEN=.*/PS5_FULLSCREEN=yes/' "$CFG/config"
+PS5=on CK_RUNNING=1 run bash "$T/bin/pc" ps5 spielen
+logged "pkill -x chiaki-ng" && logged "args --exit-app-on-stream-exit --fullscreen stream" && ok "ps5 spielen: closes open chiaki-ng first, full screen" || bad "ps5 play fullscreen"
+sedi 's/^PS5_FULLSCREEN=.*/PS5_FULLSCREEN=no/' "$CFG/config"
+run bash "$T/bin/pc" ps5 stop;              logged "pkill -x chiaki-ng" && has "stays on" && ok "ps5 stop: closes chiaki-ng" || bad "ps5 stop"
+mv "$MOCKSTATE/chiaki.xml" "$MOCKSTATE/chiaki.off"
+ps5reset; run bash "$T/bin/pc" ps5 on; rc=$?
+[ $rc -ne 0 ] && has "No Remote Play key" && ! logged WAKEUP && ok "ps5 on: not paired → hint, nothing sent" || bad "ps5: no key"
+run bash "$T/bin/pc" ps5 play;              has "PS5_NAME" && ok "ps5 play: name unknown → hint PS5_NAME" || bad "ps5: no name"
+sedi 's/^PS5_REGISTKEY=.*/PS5_REGISTKEY=0000ff/' "$CFG/config"
+ps5reset; run bash "$T/bin/pc" ps5 an;      logged "user-credential:255 " && ok "ps5 an: PS5_REGISTKEY from the config" || bad "ps5: key from config"
+sedi 's/^PS5_REGISTKEY=.*/PS5_REGISTKEY=/' "$CFG/config"
+mv "$MOCKSTATE/chiaki.off" "$MOCKSTATE/chiaki.xml"
+ps5reset; CK_RUNNING=1 run bash "$T/bin/pc" state
+has "^ps5=standby$" && has "^ps5play=1$" && ok "state: ps5=standby, ps5play=1 (chiaki-ng open)" || bad "state: ps5"
+HOME_UP=0 run bash "$T/bin/pc" state;       has "^ps5=off$" && ! grep -q "^nc -u" "$MOCKLOG" && ok "state: no home network → ps5=off, no UDP" || bad "state: ps5 no home"
+run bash "$T/bin/pc" doctor
+has "✓ PS5 .*rest mode" && has "✓ PS5 pairing .*PS5-Wohnzimmer" && has "All good." && ok "doctor: PS5 part included" || bad "doctor: ps5"
+PS5=off CK_OK=0 run bash "$T/bin/pc" ps5 doctor --plain; rc=$?
+has "^bad${TAB}PS5${TAB}" && has "^bad${TAB}chiaki-ng${TAB}.*releases" && ! has "UpSnap" && [ $rc -ne 0 ] \
+  && ok "ps5 doctor --plain: only the PS5 part, problems with hints" || bad "ps5 doctor"
+ps5reset; WAS_CONFIRMED=1 WAS_QUIET=1 run bash "$CFG/action.sh" ps5-play
+logged "chiaki-ng --args" && ok "action.sh ps5-play → pc ps5 play (widget)" || bad "action ps5"
+sedi 's/^PS5_IP=.*/PS5_IP=/' "$CFG/config"
 
 echo "== menu bar plugin: display =="
 reset_state

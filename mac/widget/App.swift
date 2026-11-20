@@ -29,7 +29,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let actionQueue = DispatchQueue(label: "wake-and-stream.action")
     private let doctorQueue = DispatchQueue(label: "wake-and-stream.doctor")
 
-    static let actions: Set<String> = ["on", "work", "play", "stop", "release", "off", "sleep"]
+    static let actions: Set<String> = ["on", "work", "play", "stop", "release", "off", "sleep",
+                                       "ps5-on", "ps5-play", "ps5-stop"]
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // start automatically at login (shows up in System Settings → General → Login Items)
@@ -157,7 +158,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let key = content + "\(minute)"
         if key != lastShown {
             lastShown = key
-            WidgetCenter.shared.reloadTimelines(ofKind: WAS.widgetKind)
+            WidgetCenter.shared.reloadAllTimelines()   // PC and PS5 widget
         }
     }
 

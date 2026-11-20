@@ -17,6 +17,9 @@ APOLLO_URL=""; STREAM_APP=Desktop
 WINDOWS_DIR='C:\ProgramData\WakeAndStream'
 RDP_APP="Windows App"; RDP_PC_NAME=Desktop
 PLAY_FULLSCREEN=no
+PS5_IP=""; PS5_NAME=""; PS5_REGISTKEY=""; PS5_APP=chiaki-ng; PS5_FULLSCREEN=no
+PS5_PORT=9302                             # PS5 discovery/wake port (only changed by the tests)
+PS5_CHIAKI_PLIST="$HOME/Library/Preferences/com.chiaki.Chiaki.plist"   # chiaki-ng's settings
 
 # shellcheck source=/dev/null
 [ -f "$WAS_CONFIG" ] && . "$WAS_CONFIG"
@@ -188,6 +191,53 @@ t() {
     *:dr_all_ok)        echo "All good." ;;
     de:dr_problems)     echo "$2 Problem(e) gefunden – siehe → oben." ;;
     *:dr_problems)      echo "$2 problem(s) found – see → above." ;;
+    # PlayStation 5 (pc ps5 …)
+    de:ps5_no_config)   echo "Keine PS5 eingerichtet – PS5_IP in $WAS_CONFIG eintragen (docs/12-ps5.md)." ;;
+    *:ps5_no_config)    echo "No PS5 set up – add PS5_IP to $WAS_CONFIG (docs/12-ps5.md)." ;;
+    de:ps5_is_on)       echo "PS5 ist an." ;;
+    *:ps5_is_on)        echo "PS5 is on." ;;
+    de:ps5_is_standby)  echo "PS5 ist im Ruhemodus." ;;
+    *:ps5_is_standby)   echo "PS5 is in rest mode." ;;
+    de:ps5_is_off)      echo "PS5 antwortet nicht (ganz aus, oder im Ruhemodus ohne Netzwerk)." ;;
+    *:ps5_is_off)       echo "PS5 does not answer (switched off, or rest mode without network)." ;;
+    de:ps5_waking)      echo "PS5 wird geweckt …" ;;
+    *:ps5_waking)       echo "Waking the PS5 …" ;;
+    de:ps5_waiting)     printf "Warte auf PS5" ;;
+    *:ps5_waiting)      printf "Waiting for PS5" ;;
+    de:ps5_timeout)     echo "PS5 nach 1 Minute nicht wach – ganz aus? Ruhemodus-Einstellungen prüfen (docs/12-ps5.md)." ;;
+    *:ps5_timeout)      echo "PS5 not awake after 1 minute – switched off? Check the rest mode settings (docs/12-ps5.md)." ;;
+    de:ps5_ready)       echo "PS5 ist bereit." ;;
+    *:ps5_ready)        echo "PS5 is ready." ;;
+    de:ps5_already_on)  echo "PS5 läuft schon." ;;
+    *:ps5_already_on)   echo "PS5 is already on." ;;
+    de:ps5_no_key)      echo "Kein Remote-Play-Schlüssel gefunden – PS5 zuerst einmal zu Hause in $PS5_APP koppeln (docs/12-ps5.md)." ;;
+    *:ps5_no_key)       echo "No Remote Play key found – pair the PS5 in $PS5_APP once at home first (docs/12-ps5.md)." ;;
+    de:ps5_no_name)     echo "Name der gekoppelten PS5 unbekannt – PS5_NAME in $WAS_CONFIG eintragen (wie in $PS5_APP angezeigt)." ;;
+    *:ps5_no_name)      echo "Name of the paired PS5 unknown – add PS5_NAME to $WAS_CONFIG (as shown in $PS5_APP)." ;;
+    de:ps5_play_start)  echo "$PS5_APP startet den Stream." ;;
+    *:ps5_play_start)   echo "$PS5_APP starts the stream." ;;
+    de:ps5_stopped)     echo "PS5-Stream beendet – die PS5 bleibt an (im Stream: PS-Taste → Ausschalten → Ruhemodus)." ;;
+    *:ps5_stopped)      echo "PS5 stream ended – the PS5 stays on (in the stream: PS button → Power → Rest mode)." ;;
+    de:dr_ps5)          echo "PS5" ;;
+    *:dr_ps5)           echo "PS5" ;;
+    de:dr_ps5_on)       echo "an ($PS5_IP antwortet)" ;;
+    *:dr_ps5_on)        echo "on ($PS5_IP answers)" ;;
+    de:dr_ps5_standby)  echo "Ruhemodus, kann geweckt werden" ;;
+    *:dr_ps5_standby)   echo "rest mode, can be woken" ;;
+    de:dr_ps5_off)      echo "$PS5_IP antwortet nicht" ;;
+    *:dr_ps5_off)       echo "$PS5_IP does not answer" ;;
+    de:dr_ps5_off_hint) echo "ganz aus? IP richtig? Ruhemodus: „Mit dem Internet verbunden bleiben“ + „Einschalten über Netzwerk“ an (docs/12-ps5.md)" ;;
+    *:dr_ps5_off_hint)  echo "switched off? IP correct? Rest mode: \"Stay connected to the internet\" + \"Enable turning on PS5 from network\" (docs/12-ps5.md)" ;;
+    de:dr_ps5_pair)     echo "PS5-Kopplung" ;;
+    *:dr_ps5_pair)      echo "PS5 pairing" ;;
+    de:dr_ps5_pair_ok)  echo "Schlüssel gefunden, Konsole „$2“" ;;
+    *:dr_ps5_pair_ok)   echo "key found, console \"$2\"" ;;
+    de:dr_ps5_pair_bad) echo "kein Remote-Play-Schlüssel (oder kein Name) gefunden" ;;
+    *:dr_ps5_pair_bad)  echo "no Remote Play key (or no name) found" ;;
+    de:dr_ps5_pair_hint) echo "$PS5_APP öffnen, PS5 zu Hause einmal koppeln (docs/12-ps5.md)" ;;
+    *:dr_ps5_pair_hint)  echo "open $PS5_APP and pair the PS5 once at home (docs/12-ps5.md)" ;;
+    de:dr_ps5_app_hint) echo "$PS5_APP installieren: github.com/chiaki-ng/chiaki-ng/releases" ;;
+    *:dr_ps5_app_hint)  echo "install $PS5_APP: github.com/chiaki-ng/chiaki-ng/releases" ;;
     *)                  echo "$1" ;;
   esac
 }
@@ -204,11 +254,17 @@ home_reachable() { ping -c1 -t1 "$ROUTER_IP" >/dev/null 2>&1; }
 #   S_STREAM 2 = Moonlight stream open on this Mac, 1 = paused (started, not ended), 0 = none
 #   S_RDP    1 = this Mac is connected via remote desktop
 #   S_LAST   "sleep"/"off" = what was last chosen while the PC is off (both look the same from outside)
+#   S_PS5    none (no PS5_IP) / on / standby / off;  S_PS5PLAY 1 = chiaki-ng is open on this Mac
 # (Apollo/Sunshine only report the stream state to paired clients, so we track it on the Mac.)
 was_state() {
-  S_HOME=0; S_ON=0; S_STREAM=0; S_RDP=0; S_LAST=""
+  S_HOME=0; S_ON=0; S_STREAM=0; S_RDP=0; S_LAST=""; S_PS5=none; S_PS5PLAY=0
+  [ -z "$PS5_IP" ] || S_PS5=off
   home_reachable || return 0
   S_HOME=1
+  if [ -n "$PS5_IP" ]; then
+    S_PS5=$(ps5_state)
+    pgrep -x "$PS5_APP" >/dev/null && S_PS5PLAY=1
+  fi
   if port_open 3389; then
     S_ON=1
     [ -f "$WAS_STREAM" ] && S_STREAM=1
@@ -230,5 +286,56 @@ was_state() {
     rm -f "$WAS_STREAM"   # PC is off/asleep → no stream can be running
     S_LAST=$(cat "$WAS_STATE" 2>/dev/null)
   fi
+  return 0
+}
+
+# ---------- PlayStation 5 (optional, needs chiaki-ng) ----------
+# The PS5 answers a small UDP "search" on port 9302 – also in rest mode, if it stays connected –
+# and wakes up from a "WAKEUP" packet with the Remote Play key that chiaki-ng got when pairing.
+# Same protocol as chiaki-ng (lib/src/discovery.c). Unicast UDP, so it also works through Tailscale/VPN.
+
+# ps5_state → on / standby / off (off = no answer: switched off, no network in rest mode, wrong IP)
+ps5_state() {
+  local r
+  r=$(printf 'SRCH * HTTP/1.1\ndevice-discovery-protocol-version:00030010\n' |
+      nc -u -w 1 "$PS5_IP" "$PS5_PORT" 2>/dev/null | head -n 1)
+  case "$r" in *" 200 "*) echo on;; *" 620 "*) echo standby;; *) echo off;; esac
+}
+
+# ps5_chiaki_value <key> – first value of <key> in chiaki-ng's settings (Qt stores them in a plist,
+# keys like registered_hosts/1/rp_regist_key). Byte values come as <data> (base64), text as <string>.
+ps5_chiaki_value() {
+  local f v
+  for f in "$PS5_CHIAKI_PLIST" "$HOME"/Library/Preferences/com.chiaki*.plist; do
+    [ -f "$f" ] || continue
+    v=$(plutil -convert xml1 -o - "$f" 2>/dev/null | awk -v k="$1" '
+          found { buf = buf $0; if ($0 ~ /<\/(data|string)>/) { print buf; exit } next }
+          $0 ~ "<key>([^<]*[./])?" k "</key>" { found = 1 }')
+    case "$v" in
+      *"<data>"*)   v=$(printf '%s' "$v" | sed -e 's/<[^>]*>//g' -e 's/[[:space:]]//g' | base64 -D 2>/dev/null | tr -d '\000') ;;
+      *"<string>"*) v=$(printf '%s' "$v" | sed -e 's/.*<string>//' -e 's/<\/string>.*//' -e 's/^@ByteArray(\(.*\))$/\1/') ;;
+      *) v="" ;;
+    esac
+    [ -n "$v" ] && { printf '%s\n' "$v"; return 0; }
+  done
+  return 1
+}
+
+# Remote Play key (8 hex digits): from the config, else from chiaki-ng's pairing. Returns 1 if none.
+ps5_key() {
+  local k="${PS5_REGISTKEY:-$(ps5_chiaki_value rp_regist_key)}"
+  printf '%s' "$k" | grep -q -E '^[0-9a-fA-F]{1,16}$' || return 1
+  printf '%s\n' "$k"
+}
+# Name of the paired console in chiaki-ng (needed to start a stream)
+ps5_name() { printf '%s\n' "${PS5_NAME:-$(ps5_chiaki_value server_nickname)}"; }
+
+# Send the wake packet. Returns 1 without a key.
+ps5_wake() {
+  local key cred
+  key=$(ps5_key) || return 1
+  cred=$(printf '%u' "0x$key")
+  printf 'WAKEUP * HTTP/1.1\nclient-type:vr\nauth-type:R\nmodel:w\napp-type:r\nuser-credential:%s\ndevice-discovery-protocol-version:00030010\n' "$cred" |
+    nc -u -w 1 "$PS5_IP" "$PS5_PORT" >/dev/null 2>&1
   return 0
 }

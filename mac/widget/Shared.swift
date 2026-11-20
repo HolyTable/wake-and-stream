@@ -14,6 +14,7 @@ enum WAS {
     static var stateFile: String { dir + "/widget-state" }
     static let scheme = "wakeandstream"
     static let widgetKind = "WakeAndStream"
+    static let ps5WidgetKind = "WakeAndStreamPS5"
     /// preview.swift: draw buttons without Link (the image renderer cannot draw links)
     nonisolated(unsafe) static var preview = false
 }
@@ -45,6 +46,8 @@ struct PCState {
     var stream = 0            // 2 = Moonlight open, 1 = paused, 0 = none
     var rdp = false           // remote desktop connected from this Mac
     var last = ""             // "sleep"/"off" while the PC is off
+    var ps5 = "none"          // PlayStation 5: none (not set up) / on / standby / off
+    var ps5play = false       // chiaki-ng open on this Mac
     var lang = "en"
     var busy = ""             // action that is running right now (on/work/play/stop/release/off/sleep)
     var confirm = ""          // action waiting for "really …?" in the widget
@@ -65,6 +68,8 @@ struct PCState {
             case "stream": stream = Int(value) ?? 0
             case "rdp":    rdp = value == "1"
             case "last":   last = value
+            case "ps5":    ps5 = value
+            case "ps5play": ps5play = value == "1"
             case "lang":   lang = value
             case "busy":   busy = value
             case "confirm": confirm = value
@@ -162,6 +167,20 @@ enum Texts {
         case "dr_failed_detail": return de ? "„pc doktor“ im Terminal ausführen" : "run \"pc doctor\" in Terminal"
         case "dr_n_ok":       return de ? "%d Prüfungen ok" : "%d checks OK"
         case "dr_pc_off":     return de ? "PC aus – PC-Prüfungen übersprungen" : "PC off – PC checks skipped"
+        case "ps5_title":     return "PS5"
+        case "s_ps5_on":      return de ? "An" : "On"
+        case "s_ps5_rest":    return de ? "Ruhemodus" : "Rest mode"
+        case "s_ps5_off":     return de ? "Nicht erreichbar" : "Not reachable"
+        case "s_ps5_off_detail": return de ? "Ganz aus oder Netz im Ruhemodus aus" : "Off, or network off in rest mode"
+        case "s_ps5_none":    return de ? "Nicht eingerichtet" : "Not set up"
+        case "s_ps5_none_detail": return de ? "PS5_IP in der config eintragen" : "Add PS5_IP to the config"
+        case "s_ps5_stream":  return de ? "Stream läuft" : "Streaming"
+        case "busy_ps5_on":   return de ? "Wird geweckt …" : "Waking up …"
+        case "busy_ps5_stop": return de ? "Stream wird beendet …" : "Ending stream …"
+        case "q_ps5_on":      return de ? "PS5 aufwecken?" : "Wake the PS5?"
+        case "q_ps5_play":    return de ? "Aufwecken und spielen?" : "Wake up and play?"
+        case "ps5_desc":      return de ? "PlayStation 5 aufwecken und über chiaki-ng spielen."
+                                        : "Wake your PlayStation 5 and play through chiaki-ng."
         case "desc":          return de ? "PC einschalten, arbeiten, spielen und ausschalten."
                                         : "Turn your PC on, work, play and shut it down."
         default:              return key

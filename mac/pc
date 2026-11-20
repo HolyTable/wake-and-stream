@@ -11,8 +11,9 @@
 #   pc status   is the PC on?
 #   pc state    machine-readable state for the widget app (key=value lines)
 #   pc doctor   check every link (VPN, UpSnap, PC, SSH, Windows part, Apollo, Mac apps) – changes nothing
+#   pc ps5 …    PlayStation 5 through chiaki-ng: status, on, play, stop, doctor (docs/12-ps5.md)
 #
-# German aliases: an, arbeiten (rdp), spielen (moon), stopp, zurueck, aus, standby, doktor
+# German aliases: an, arbeiten (rdp), spielen (moon), stopp, zurueck, aus, standby, doktor (also for pc ps5 …)
 # Settings: ~/.config/wake-and-stream/config   (language, IPs, user, …)
 
 # shellcheck source=/dev/null
@@ -195,7 +196,10 @@ pc_doctor() {
     fi
   fi
 
-  # 5. on this Mac
+  # 5. PlayStation 5 (only if set up)
+  [ -z "$PS5_IP" ] || ps5_checks
+
+  # 6. on this Mac
   missing=""
   open -Ra Moonlight >/dev/null 2>&1 || missing="$missing Moonlight"
   open -Ra "$RDP_APP" >/dev/null 2>&1 || missing="$missing \"$RDP_APP\""
@@ -208,6 +212,79 @@ pc_doctor() {
   [ -n "$DR_PLAIN" ] && { [ $DR_FAIL -eq 0 ]; exit; }
   echo
   if [ $DR_FAIL -eq 0 ]; then t dr_all_ok; else t dr_problems "$DR_FAIL"; exit 1; fi
+}
+
+# PS5 part of the doctor: answers? chiaki-ng installed? paired (key + name)?
+ps5_checks() {
+  local name
+  if home_reachable; then
+    case $(ps5_state) in
+      on)      dr ok "$(t dr_ps5)" "$(t dr_ps5_on)" ;;
+      standby) dr ok "$(t dr_ps5)" "$(t dr_ps5_standby)" ;;
+      *)       dr bad "$(t dr_ps5)" "$(t dr_ps5_off)" "$(t dr_ps5_off_hint)" ;;
+    esac
+  fi
+  if ! open -Ra "$PS5_APP" >/dev/null 2>&1; then
+    dr bad "$PS5_APP" "$(t dr_apps_missing) $PS5_APP" "$(t dr_ps5_app_hint)"
+    return 0
+  fi
+  name=$(ps5_name)
+  if ps5_key >/dev/null && [ -n "$name" ]; then dr ok "$(t dr_ps5_pair)" "$(t dr_ps5_pair_ok "$name")"
+  else dr bad "$(t dr_ps5_pair)" "$(t dr_ps5_pair_bad)" "$(t dr_ps5_pair_hint)"; fi
+}
+
+# Wake the PS5 if needed and wait until it is on (resend the wake packet every 10 s)
+ps5_start() {
+  local first i
+  first=$(ps5_state)
+  [ "$first" = on ] && return 0
+  ps5_wake || { t ps5_no_key; exit 1; }
+  t ps5_waking; t ps5_waiting
+  for i in $(seq 1 30); do
+    sleep 2
+    [ "$(ps5_state)" = on ] && { t arrived; sleep 3; return 0; }
+    [ $((i % 5)) -eq 0 ] && ps5_wake
+    printf "."
+  done
+  echo
+  if [ "$first" = off ]; then t ps5_is_off; else t ps5_timeout; fi
+  exit 1
+}
+
+pc_ps5() {
+  local name
+  [ -n "$PS5_IP" ] || { t ps5_no_config; exit 1; }
+  case "$1" in
+    on|an)
+      require_home
+      [ "$(ps5_state)" = on ] && { t ps5_already_on; exit 0; }
+      ps5_start; t ps5_ready ;;
+    play|spielen)
+      require_home
+      name=$(ps5_name); [ -n "$name" ] || { t ps5_no_name; exit 1; }
+      ps5_start
+      # one chiaki-ng at a time (macOS ignores the arguments of an app that is already open)
+      pkill -x "$PS5_APP" 2>/dev/null && sleep 1
+      # options must come before "stream" – chiaki-ng reads everything after it as names
+      set -- --exit-app-on-stream-exit
+      [ "$PS5_FULLSCREEN" = yes ] && set -- "$@" --fullscreen
+      open -a "$PS5_APP" --args "$@" stream "$name" "$PS5_IP"
+      t ps5_play_start ;;
+    stop|stopp)
+      pkill -x "$PS5_APP" 2>/dev/null
+      t ps5_stopped ;;
+    doctor|doktor|check)
+      DR_PLAIN=""; [ "$2" = --plain ] && DR_PLAIN=1
+      [ -n "$DR_PLAIN" ] || t dr_title
+      home_reachable || dr bad "$(t dr_home)" "$(t dr_home_bad)" "$(t dr_home_hint)"
+      ps5_checks
+      [ -n "$DR_PLAIN" ] && { [ $DR_FAIL -eq 0 ]; exit; }
+      echo
+      if [ $DR_FAIL -eq 0 ]; then t dr_all_ok; else t dr_problems "$DR_FAIL"; exit 1; fi ;;
+    *)
+      require_home
+      case $(ps5_state) in on) t ps5_is_on;; standby) t ps5_is_standby;; *) t ps5_is_off;; esac ;;
+  esac
 }
 
 # Turn the PC on if needed and wait until the given port answers
@@ -269,10 +346,12 @@ case "$1" in
     if port_open 3389; then t is_on; else t is_off; fi ;;
   doctor|doktor|check)
     pc_doctor "$2" ;;
+  ps5)
+    pc_ps5 "$2" "$3" ;;
   state)
     was_state
-    printf 'home=%s\non=%s\nstream=%s\nrdp=%s\nlast=%s\nlang=%s\n' \
-      "$S_HOME" "$S_ON" "$S_STREAM" "$S_RDP" "$S_LAST" "$LANGUAGE" ;;
+    printf 'home=%s\non=%s\nstream=%s\nrdp=%s\nlast=%s\nlang=%s\nps5=%s\nps5play=%s\n' \
+      "$S_HOME" "$S_ON" "$S_STREAM" "$S_RDP" "$S_LAST" "$LANGUAGE" "$S_PS5" "$S_PS5PLAY" ;;
   *)
     if [ "$LANGUAGE" = de ]; then
       cat <<'HILFE'
@@ -294,6 +373,13 @@ pc – Desktop-PC fernsteuern
   Info
     pc status      ist der PC an?
     pc doktor      alles prüfen (VPN, UpSnap, SSH, Apollo …), sagt was fehlt
+
+  PlayStation 5 (über chiaki-ng, docs/12-ps5.md)
+    pc ps5         ist die PS5 an, im Ruhemodus oder aus?
+    pc ps5 an      aus dem Ruhemodus wecken
+    pc ps5 spielen wecken + Stream in chiaki-ng
+    pc ps5 stopp   Stream beenden (PS5 bleibt an)
+    pc ps5 doktor  PS5-Teil prüfen
 HILFE
     else
       cat <<'HELP'
@@ -315,6 +401,13 @@ pc – control your desktop PC remotely
   Info
     pc status      is the PC on?
     pc doctor      check everything (VPN, UpSnap, SSH, Apollo …), says what is wrong
+
+  PlayStation 5 (through chiaki-ng, docs/12-ps5.md)
+    pc ps5         is the PS5 on, in rest mode or off?
+    pc ps5 on      wake it from rest mode
+    pc ps5 play    wake + stream in chiaki-ng
+    pc ps5 stop    end the stream (the PS5 stays on)
+    pc ps5 doctor  check the PS5 part
 HELP
     fi ;;
 esac

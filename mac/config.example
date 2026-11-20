@@ -36,3 +36,13 @@ WINDOWS_DIR='C:\ProgramData\WakeAndStream'
 # Remote desktop app on the Mac and the name of the saved PC in it (for the hint text)
 RDP_APP="Windows App"
 RDP_PC_NAME=Desktop
+
+# PlayStation 5 (optional) – wake it and stream through chiaki-ng, see docs/12-ps5.md.
+# Leave PS5_IP empty if you have no PS5. Give the PS5 a fixed IP in your router.
+PS5_IP=
+# Name of the paired console in chiaki-ng and its Remote Play key – normally read from chiaki-ng's
+# settings automatically; only fill these in if "pc ps5 doctor" says it cannot find them.
+PS5_NAME=
+PS5_REGISTKEY=
+# "pc ps5 play": open the stream in full screen (yes/no)
+PS5_FULLSCREEN=no
